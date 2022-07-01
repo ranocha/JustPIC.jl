@@ -64,10 +64,10 @@ end
     px, py, pz, v0::NTuple{3,T1}, particles_index::AbstractVector{T2}, grid, dxi, dt, α
 ) where {T1,T2}
 
-    zero_T = zero(T2)
-    if i ≤ length(px) && particles_index[i] != zero_T
-        idx = particles_index[i]
-        pᵢ = (px[idx], py[idx], pz[idx])
+    # zero_T = zero(T2)
+    if i ≤ length(px) && particles_index[i] === true
+        # idx = particles_index[i]
+        pᵢ = (px[i], py[i], pz[i])
         px[i], py[i], pz[i] = _advection_RK2(pᵢ, v0, grid, dxi, dt; α=α)
     end
 
@@ -78,10 +78,10 @@ end
     px, py, v0::NTuple{2,T1}, particles_index::AbstractVector{T2}, grid, dxi, dt, α
 ) where {T1,T2}
 
-    zero_T = zero(T2)
-    if i ≤ length(px) && particles_index[i] != zero_T
-        idx = particles_index[i]
-        pᵢ = (px[idx], py[idx])
+    # zero_T = zero(T2)
+    if i ≤ length(px) && particles_index[i] === true
+        # idx = particles_index[i]
+        pᵢ = (px[i], py[i])
         px[i], py[i] = _advection_RK2(pᵢ, v0, grid, dxi, dt; α=α)
     end
 

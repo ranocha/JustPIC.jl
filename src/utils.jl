@@ -58,3 +58,32 @@ function color_cells(nxi::NTuple{3,T}) where {T}
     end
     return color_list
 end
+
+# find_free_memory(v, i0, max_xcell) = find_free_memory(v, i0, Val(max_xcell))
+
+# @inline @generated function find_free_memory(v, i0, ::Val{N}) where N
+#     quote
+#         Base.Cartesian.@nexprs $N i -> v[i0+i-1] == 0 && return i0+i-1
+#     end
+# end
+
+# function find_free_memory(indices)
+#     for i in indices
+#         index[i] == 0 && return i
+#     end
+#     return 0
+# end
+
+# v = rand(Bool, 80)
+# i0 = 9
+# max_xcell = 8
+# find_free_memory(v, i0, max_xcell) 
+
+
+# @code_warntype find_free_memory(v, i0, max_xcell) 
+
+# @btime find_free_memory($v, $i0, $max_xcell) 
+# @btime find_free_memory($v, $i0, $(Val(max_xcell))) 
+    
+
+# @btime foo($v, $i0, $max_xcell) 

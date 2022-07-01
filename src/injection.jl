@@ -1,41 +1,41 @@
-function lin2cart(cell, nx)
-    ix = (cell-1) ÷ nx + 1
-    iy = (cell-1) ÷ nx*(ix) + 1
-    return ix, iy
-end
-
-function inject_particles(particles::Particles, grid, nxi, dxi)
-    # closures 
-    cell_number(i) = (i-1) ÷ (max_xcell) + 1
-    first_cell_index(i) = (i - 1) * max_xcell + 1
-    
+function inject_particles!(particles::Particles, grid, nxi, dxi)
     # unpack
-    (; inject, coords, index, np, max_xcell) = particles
-    nx, = nxi
+    (; inject, coords, nxcell, max_xcell) = particles
     dx, dy = dxi
+    px, py = coords
 
-    for (i, injection) in enumerate(inject)
+    # closures 
+    first_cell_index(i) = (i - 1) * max_xcell + 1
+    myrand() = (1.0 + (rand()-0.5))
+
+    # linear to cartesian object
+    i2s = CartesianIndices(nxi.-1)
+
+    for (cell, injection) in enumerate(inject)
         if injection
-            cell = cell_number(i)
-            icell, jcell = lin2cart(cell, nx)
+            icell, jcell = i2s[cell].I
             xc, yc = corner_coordinate(grid, icell, jcell)
-
-            # add 4 new particles in a 2x2 manner
-            coords[1][index[i]] = xc + dx*(1/3)
-            coords[2][index[i]] = yc
-            coords[1][index[i+1]] = xc + dx*(2/3)
-            coords[2][index[i+1]] = yc
-            coords[1][index[i+2]] = xc + dx*(1/3)
-            coords[2][index[i+2]] = yc + dy*(1/3)
-            coords[1][index[i+3]] = xc + dx*(2/3)
-            coords[2][index[i+3]] = yc + dy*(1/3)
-
-            
             idx = first_cell_index(cell)
 
+            @show idx cell
+            # add 4 new particles in a 2x2 manner + some small random perturbation
+            px[idx]   = xc + dx*(1/3)*myrand()
+            px[idx+1] = xc + dx*(2/3)*myrand()
+            px[idx+2] = xc + dx*(1/3)*myrand()
+            px[idx+3] = xc + dx*(2/3)*myrand()
+            py[idx]   = yc + dy*(1/3)*myrand()
+            py[idx+1] = yc + dy*(1/3)*myrand()
+            py[idx+2] = yc + dy*(2/3)*myrand()
+            py[idx+3] = yc + dy*(2/3)*myrand()
+
+            for i in idx:(idx+nxcell-1)
+                particles.index[i] = true
+            end
+
+            # inject[cell] = false # for debugging, not necessary
         end
     end
+
 end
 
-
-
+@inline check_injection(inject::AbstractArray) = sum(inject) > 0 ? true : false
