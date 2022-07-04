@@ -48,62 +48,40 @@ function save_timestep!(fname, p, t)
     return nothing
 end
 
-@inline function cart2lin(I::NTuple{N,Integer}, nxi::NTuple{N,T}) where {N,T}
-    return cart2lin(I..., ntuple(i -> nxi[i], Val(N - 1))...)
-end
-@inline cart2lin(i, j, nx) = i + (j - 1) * nx
-@inline cart2lin(i, j, k, nx, ny) = cart2lin(i, j, nx) + (k - 1) * nx * ny
+# function shuffle_particles2!(particles, grid, dxi, nxi, args)
+#     nx, ny = nxi
+#     # iterate over cells
+#     # for i in 1:2
+#     #     for icell in i:2:(nx - 1), jcell in i:2:(ny - 1)
+#     #         _shuffle_particles!(particles, grid, dxi, nxi, icell, jcell)
+#     #     end
+#     # end
 
-@inline function corner_coordinate(grid::NTuple{N,T1}, I::Vararg{T2,N}) where {T1,T2,N}
-    return ntuple(i -> grid[i][I[i]], Val(N))
-end
+#     for icell in 1:(nx - 1), jcell in 1:(ny - 1)
+#         _shuffle_particles!(particles, grid, dxi, nxi, icell, jcell, args)
+#     end
+# end
 
-@inline function isincell(p::NTuple{2,T}, xci::NTuple{2,T}, dxi::NTuple{2,T}) where {T}
-    px, py = p # particle coordinate
-    xc, yc = xci # corner coordinate
-    dx, dy = dxi # spacing between gridpoints
-
-    # check if it's outside the x-limits
-    px < xc && return false
-    px > xc + dx && return false
-    # check if it's outside the y-limits
-    py < yc && return false
-    py > yc + dy && return false
-    # otherwise particle is inside parent cell
-    return true
-end
-
-@inline function isincell(p::NTuple{3,T}, xci::NTuple{3,T}, dxi::NTuple{3,T}) where {T}
-    px, py, pz = p # particle coordinate
-    xc, yc, zc = xci # corner coordinate
-    dx, dy, dz = dxi # spacing between gridpoints
-
-    # check if it's outside the x- and y-limits
-    !isincell((px, py), (xc, yc), (dx, dy)) && return false
-    # check if it's outside the z-limits
-    pz < zc && return false
-    pz > zc + dz && return false
-    # otherwise particle is inside the cell
-    return true
-end
-
-function shuffle_particles!(particles, grid, dxi, nxi, args)
-    nx, ny = nxi
-    # iterate over cells
-    # for i in 1:2
-    #     for icell in i:2:(nx - 1), jcell in i:2:(ny - 1)
-    #         _shuffle_particles!(particles, grid, dxi, nxi, icell, jcell)
-    #     end
-    # end
-
-    for icell in 1:(nx - 1), jcell in 1:(ny - 1)
-        _shuffle_particles!(particles, grid, dxi, nxi, icell, jcell, args)
-    end
-end
-
-function _shuffle_particles!(particles, grid, dxi, nxi, icell, jcell, args::NTuple{N,T}) where {N,T}
+function shuffle_particles!(particles::Particles, grid, dxi, nxi, args)
     # unpack
-    (; index, coords, inject, max_xcell) = particles
+    (; coords, index, inject, max_xcell) = particles
+    nx, ny = nxi
+   
+    @parallel (1:(nx - 1),  1:(ny - 1)) shuffle_particles!(coords, grid, dxi, nxi, index, inject, max_xcell, args)
+
+    return nothing
+end
+
+@parallel_indices (icell, jcell) function shuffle_particles!(coords::NTuple{2,T}, grid, dxi, nxi, index, inject, max_xcell, args) where T
+    nx, ny = nxi
+    if (icell ≤ nx-1) && (icell ≤ ny-1)
+        _shuffle_particles!(coords, grid, dxi, nxi, index, inject, max_xcell, icell, jcell, args)
+    end
+    return nothing
+end
+
+function _shuffle_particles!(coords, grid, dxi, nxi, index, inject, max_xcell, icell, jcell, args::NTuple{N,T}) where {N, T}
+    
     px, py = coords
     nx, ny = nxi
 
@@ -120,12 +98,12 @@ function _shuffle_particles!(particles, grid, dxi, nxi, icell, jcell, args::NTup
     # -----------------------------------------------
 
     # current (parent) cell (i.e. cell in the center of the cell-block)
-    parent = cart2lin(icell, jcell, nx.-1)
+    parent = cart2lin(icell, jcell, nx-1)
     # coordinate of the lower-most-left coordinate of the parent cell 
     corner_xi = corner_coordinate(grid, icell, jcell)
     i0_parent = first_cell_index(parent)
 
-    # iterate over neighbouring (child) cells
+    # # iterate over neighbouring (child) cells
     for child in neighbouring_cells(icell, jcell, nx, ny)
 
         # ignore parent cell
@@ -143,7 +121,6 @@ function _shuffle_particles!(particles, grid, dxi, nxi, icell, jcell, args::NTup
                     if isincell(p_child, corner_xi, dxi)
                         # hold particle variables to move
                         current_idx = j
-                        # current_idx = index[j]
                         current_px = px[current_idx]
                         current_py = py[current_idx]
 
@@ -152,7 +129,6 @@ function _shuffle_particles!(particles, grid, dxi, nxi, icell, jcell, args::NTup
                         end
 
                         # remove particle from old cell
-                        # index[j] = zero_T
                         index[j] = false
                         px[j] = NaN
                         py[j] = NaN
@@ -167,23 +143,12 @@ function _shuffle_particles!(particles, grid, dxi, nxi, icell, jcell, args::NTup
 
                         # move it to the first free memory location
                         index[free_idx] = true
-                        # index[free_idx] = current_idx
                         px[free_idx] = current_px
                         py[free_idx] = current_py
 
                         for k in eachindex(args)
                             args[k][free_idx] = current_args[k]
                         end
-
-                        # for k in idx_range(i0_parent)
-                        #     # move it to the first free memory location
-                        #     if index[k] == zero_T
-                        #         index[k] = current_idx
-                        #         px, py = coords
-
-                        #         break
-                        #     end
-                        # end
 
                     end
                 end
@@ -203,8 +168,14 @@ function isemptycell(
     # closures
     idx_range(i) = i:(i + max_xcell - 1)
     
-    return sum(index[j] for  j in idx_range(idx)) > 0 ? false : true
-end
+    val = 0
+    for j in idx_range(idx)
+        if index[j]
+            val += 1
+        end
+    end
+    return val > 0 ? false : true
+    end
 
 function random_particles(nxcell, max_xcell, x, y, dx, dy, nx, ny)
     ncells = (nx - 1) * (ny - 1)
@@ -297,18 +268,18 @@ end
 
 function plot(x, y, T, particles, pT, it)
 
-    pX, pY = particles.coords
-    pidx = particles.index
+    pX, pY = Array.(particles.coords)
+    pidx = Array(particles.index)
     ii = findall(x->x==true, pidx)
     
     cmap = :jet
 
-    f = Figure(resolution= (900, 450))
+    f = Figure(resolution = (900, 450))
     ax1 = Axis(f[1,1])
-    scatter!(ax1, pX[ii], pY[ii],color=pT[ii], colorrange=(0,1), colormap=cmap)
+    scatter!(ax1, pX[ii], pY[ii], color = Array(pT[ii]), colorrange=(0,1), colormap=cmap)
     
     ax2 = Axis(f[1,2])
-    hm = heatmap!(ax2, x, y, T, colorrange=(0,1), colormap=cmap)
+    hm = heatmap!(ax2, x, y, Array(T), colorrange=(0,1), colormap=cmap)
     Colorbar(f[1,3], hm)
 
     hideydecorations!(ax2)
@@ -367,8 +338,7 @@ function main(Vx, Vy; nx=40, ny=40, nxcell=4, α = 2/3, nt = 1_000)
             advection_RK2!(particles, V, grid, dxi, dt, α)
             
             # advect particles in memory
-            shuffle_particles!(particles, grid, dxi, nxi, args)
-                
+            # shuffle_particles!(particles, grid, dxi, nxi, args)
             # check_injection(particles.inject) && (
                 # inject_particles!(particles, grid, nxi, dxi);
                 # grid2particle!(pT, grid, T, particles.coords)

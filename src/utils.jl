@@ -59,31 +59,41 @@ function color_cells(nxi::NTuple{3,T}) where {T}
     return color_list
 end
 
-# find_free_memory(v, i0, max_xcell) = find_free_memory(v, i0, Val(max_xcell))
+@inline function cart2lin(I::NTuple{N,Integer}, nxi::NTuple{N,T}) where {N,T}
+    return cart2lin(I..., ntuple(i -> nxi[i], Val(N - 1))...)
+end
+@inline cart2lin(i, j, nx) = i + (j - 1) * nx
+@inline cart2lin(i, j, k, nx, ny) = cart2lin(i, j, nx) + (k - 1) * nx * ny
 
-# @inline @generated function find_free_memory(v, i0, ::Val{N}) where N
-#     quote
-#         Base.Cartesian.@nexprs $N i -> v[i0+i-1] == 0 && return i0+i-1
-#     end
-# end
+@inline function corner_coordinate(grid::NTuple{N,T1}, I::Vararg{T2,N}) where {T1,T2,N}
+    return ntuple(i -> grid[i][I[i]], Val(N))
+end
 
-# function find_free_memory(indices)
-#     for i in indices
-#         index[i] == 0 && return i
-#     end
-#     return 0
-# end
+@inline function isincell(p::NTuple{2,T}, xci::NTuple{2,T}, dxi::NTuple{2,T}) where {T}
+    px, py = p # particle coordinate
+    xc, yc = xci # corner coordinate
+    dx, dy = dxi # spacing between gridpoints
 
-# v = rand(Bool, 80)
-# i0 = 9
-# max_xcell = 8
-# find_free_memory(v, i0, max_xcell) 
+    # check if it's outside the x-limits
+    px < xc && return false
+    px > xc + dx && return false
+    # check if it's outside the y-limits
+    py < yc && return false
+    py > yc + dy && return false
+    # otherwise particle is inside parent cell
+    return true
+end
 
+@inline function isincell(p::NTuple{3,T}, xci::NTuple{3,T}, dxi::NTuple{3,T}) where {T}
+    px, py, pz = p # particle coordinate
+    xc, yc, zc = xci # corner coordinate
+    dx, dy, dz = dxi # spacing between gridpoints
 
-# @code_warntype find_free_memory(v, i0, max_xcell) 
-
-# @btime find_free_memory($v, $i0, $max_xcell) 
-# @btime find_free_memory($v, $i0, $(Val(max_xcell))) 
-    
-
-# @btime foo($v, $i0, $max_xcell) 
+    # check if it's outside the x- and y-limits
+    !isincell((px, py), (xc, yc), (dx, dy)) && return false
+    # check if it's outside the z-limits
+    pz < zc && return false
+    pz > zc + dz && return false
+    # otherwise particle is inside the cell
+    return true
+end
