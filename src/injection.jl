@@ -6,7 +6,7 @@ function inject_particles!(particles::Particles, grid, nxi, dxi)
 
     # closures 
     first_cell_index(i) = (i - 1) * max_xcell + 1
-    myrand() = (1.0 + (rand()-0.5))
+    myrand() = (1.0 + (rand()-0.5)*0.25)
 
     # linear to cartesian object
     i2s = CartesianIndices(nxi.-1)
@@ -17,7 +17,6 @@ function inject_particles!(particles::Particles, grid, nxi, dxi)
             xc, yc = corner_coordinate(grid, icell, jcell)
             idx = first_cell_index(cell)
 
-            @show idx cell
             # add 4 new particles in a 2x2 manner + some small random perturbation
             px[idx]   = xc + dx*(1/3)*myrand()
             px[idx+1] = xc + dx*(2/3)*myrand()
@@ -32,10 +31,11 @@ function inject_particles!(particles::Particles, grid, nxi, dxi)
                 particles.index[i] = true
             end
 
-            # inject[cell] = false # for debugging, not necessary
+            inject[cell] = false
         end
     end
 
 end
+
 
 @inline check_injection(inject::AbstractArray) = sum(inject) > 0 ? true : false
