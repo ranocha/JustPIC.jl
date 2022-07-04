@@ -21,7 +21,7 @@ end
 
 push!(LOAD_PATH, "..")
 
-const PS_PACKAGE = :Threads
+const PS_PACKAGE = :CUDA
 
 @static if PS_PACKAGE == :CUDA
     @init_parallel_stencil(package = CUDA, ndims = 2)
@@ -271,7 +271,13 @@ function twoxtwo_particles(nxcell, max_xcell, x, y, dx, dy, nx, ny, lx, ly)
         end
     end
 
-    return Particles((px, py), index, inject, nxcell, max_xcell, np), pT
+    if PS_PACKAGE === :CUDA
+        pxi = CuArray.((px, py))
+        return Particles(pxi, CuArray(index), CuArray(inject), nxcell, max_xcell, np), CuArray(pT)
+
+    else
+        return Particles((px, py), index, inject, nxcell, max_xcell, np), pT
+    end
 end
 
 function foo(i)
@@ -332,7 +338,7 @@ function main(Vx, Vy; nx=40, ny=40, nxcell=4, α = 2/3, nt = 1_000)
     y = LinRange(0, ly, ny)
     grid = (x, y)
 
-    T = Matrix{Float64}(undef, nx, ny)
+    T = PS_PACKAGE === :CUDA ? CuMatrix{Float64}(undef, nx, ny) : Matrix{Float64}(undef, nx, ny)
 
     # random particles
     max_xcell = nxcell * 2
@@ -341,6 +347,7 @@ function main(Vx, Vy; nx=40, ny=40, nxcell=4, α = 2/3, nt = 1_000)
 
     # particle_coords_cpu = (px, py)
     # particle_coords = CuArray.(particle_coords_cpu)
+    pc = particles.coords
 
     # field to interpolate
     dt = min(dx, dy) / max(abs(vx0), abs(vy0)) * 0.25
@@ -354,7 +361,7 @@ function main(Vx, Vy; nx=40, ny=40, nxcell=4, α = 2/3, nt = 1_000)
     while it ≤ nt
 
         t1 = @elapsed begin
-            gathering!(T, pT, grid, particles.coords)
+            gathering!(T, pT, grid, pc)
 
             # advect particles in space
             advection_RK2!(particles, V, grid, dxi, dt, α)
@@ -389,6 +396,7 @@ nxcell=4
 nt=1000
 α = 2/3
 Vx, Vy = load_benchmark_data("data/data41_benchmark.mat")
+Vx, Vy = CuArray(Vx), CuArray(Vy)
 
 injected_rk2, t_rk2  =  main(Vx, Vy; α = 0.5, nt=5000)
 injected_heun, t_heun  =  main(Vx, Vy; α = 1.0, nt=5000)

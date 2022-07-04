@@ -357,11 +357,11 @@ function main()
     # action
     tt = 0.0
     it = 1
-    @time while it <= nt
+    while it <= nt
         if it == nt ÷ 2
             dt = -dt
         end
-        println(" # it = $it")
+        # println(" # it = $it")
         @parallel copy_particles!(
             pX_old, pY_old, pC_old, pT_old, pA_old, pX, pY, pC, pT, pA
         )
@@ -374,13 +374,13 @@ function main()
         @parallel reseed!(pX, pY, pA, pC, pT, np0, np0 + 5, np_d)
         tt += dt
         # save resuts
-        if it % nsave == 0
-            @parallel convert_viz!(pX_viz, pY_viz, pX, pY, pA, dx, dy)
-            save_timestep!("out/step_$it.mat", C, T, pX_viz, pY_viz, pC, pT, pA, tt)
-        end
+        # if it % nsave == 0
+        #     @parallel convert_viz!(pX_viz, pY_viz, pX, pY, pA, dx, dy)
+        #     save_timestep!("out/step_$it.mat", C, T, pX_viz, pY_viz, pC, pT, pA, tt)
+        # end
         it += 1
     end
     return nothing
 end
 
-main()
+@time main()
