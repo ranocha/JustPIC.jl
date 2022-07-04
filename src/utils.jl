@@ -1,3 +1,20 @@
+struct Particles{N, M, I, T1, T2, T3}
+    coords::NTuple{N,T1}
+    index::T2
+    inject::T3
+    nxcell::I
+    max_xcell::I
+    min_xcell::I
+    np::I
+
+    function Particles(coords::NTuple{N,T1}, index, inject, nxcell, max_xcell, np) where {N,T1}
+        I = typeof(np)
+        T2 = typeof(index)
+        T3 = typeof(inject)
+        new{N, max_xcell, I, T1, T2, T3}(coords, index, inject, nxcell, max_xcell, 0, np)
+    end
+end
+
 # Color grid so that all elements containing the i-th node have a different color.
 # During threaded assembly each thread acts upon a single color. In this way, we 
 # can multithread along each color avoiding synchronisations between threads. It 

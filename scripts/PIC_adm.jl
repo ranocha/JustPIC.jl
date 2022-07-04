@@ -1,23 +1,8 @@
 using MuladdMacro, MAT, CUDA
 using ParallelStencil
+using GLMakie
 using StencilInterpolations
 import StencilInterpolations: _grid2particle, parent_cell, isinside
-
-struct Particles{N, M, I, T1, T2, T3}
-    coords::NTuple{N,T1}
-    index::T2
-    inject::T3
-    nxcell::I
-    max_xcell::I
-    np::I
-
-    function Particles(coords::NTuple{N,T1}, index, inject, nxcell, max_xcell, np) where {N,T1}
-        I = typeof(np)
-        T2 = typeof(index)
-        T3 = typeof(inject)
-        new{N, max_xcell, I, T1, T2, T3}(coords, index, inject, nxcell, max_xcell, np)
-    end
-end
 
 push!(LOAD_PATH, "..")
 
@@ -30,9 +15,9 @@ elseif PS_PACKAGE == :Threads
     @init_parallel_stencil(package = Threads, ndims = 2)
 end
 
+include("../src/utils.jl")
 include("../src/advection.jl")
 include("../src/injection.jl")
-include("../src/utils.jl")
 
 ## -------------------------------------------------------------
 
@@ -67,8 +52,11 @@ function shuffle_particles!(particles::Particles, grid, dxi, nxi, args)
     (; coords, index, inject, max_xcell) = particles
     nx, ny = nxi
    
-    @parallel (1:(nx - 1),  1:(ny - 1)) shuffle_particles!(coords, grid, dxi, nxi, index, inject, max_xcell, args)
-
+    # TODO add offset to indices to avoid race conditions
+    for i in 1:2
+       @parallel (i:2:(nx - 1),  i:2:(ny - 1)) shuffle_particles!(coords, grid, dxi, nxi, index, inject, max_xcell, args)
+    end
+    
     return nothing
 end
 
@@ -288,7 +276,7 @@ function plot(x, y, T, particles, pT, it)
         xlims!(ax, 0, 10)
         ylims!(ax, 0, 10)
     end
-
+f
     fi = foo(it)
     fname = joinpath("imgs", "fig_$(fi).png")
     save(fname, f)
@@ -338,20 +326,22 @@ function main(Vx, Vy; nx=40, ny=40, nxcell=4, α = 2/3, nt = 1_000)
             advection_RK2!(particles, V, grid, dxi, dt, α)
             
             # advect particles in memory
-            # shuffle_particles!(particles, grid, dxi, nxi, args)
-            # check_injection(particles.inject) && (
-                # inject_particles!(particles, grid, nxi, dxi);
-                # grid2particle!(pT, grid, T, particles.coords)
-            # )
+            shuffle_particles!(particles, grid, dxi, nxi, args)
 
-            check_injection(particles.inject) && inject_particles!(particles, grid, nxi, dxi)
-            grid2particle!(pT, grid, T, particles.coords)
+            check_injection(particles.inject) && (
+                inject_particles!(particles, grid, nxi, dxi);
+                grid2particle!(pT, grid, T, particles.coords)
+            )
+
+            # check_injection(particles.inject) && inject_particles!(particles, grid, nxi, dxi)
+            # grid2particle!(pT, grid, T, particles.coords)
 
         end
 
         it_time[it] = t1
 
-        # plot(x, y, T, particles, pT, it)
+
+        (it % 10 == 0) && plot(x, y, T, particles, pT, it)
 
         it += 1
         t += dt
