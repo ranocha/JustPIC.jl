@@ -1,12 +1,12 @@
 using MuladdMacro, MAT, CUDA
 using ParallelStencil
-using GLMakie
+# using GLMakie
 using StencilInterpolations
 import StencilInterpolations: _grid2particle, parent_cell, isinside
 
 push!(LOAD_PATH, "..")
 
-const PS_PACKAGE = :CUDA
+const PS_PACKAGE = :Threads
 
 @static if PS_PACKAGE == :CUDA
     @init_parallel_stencil(package = CUDA, ndims = 2)
@@ -47,22 +47,27 @@ end
 #     end
 # end
 
-function shuffle_particles!(particles::Particles, grid, dxi, nxi, args)
+function shuffle_particles!(particles::Particles, grid, dxi, nxi::NTuple{N, T}, args) where {N,T}
     # unpack
     (; coords, index, inject, max_xcell) = particles
     nx, ny = nxi
    
     # TODO add offset to indices to avoid race conditions
-    for i in 1:2
-       @parallel (i:2:(nx - 1),  i:2:(ny - 1)) shuffle_particles!(coords, grid, dxi, nxi, index, inject, max_xcell, args)
+    n_i = ceil(Int, nx*(1/N))
+    n_j = ceil(Int, ny*(1/N))
+    for offset in 1:N
+       @parallel (1:n_i, 1:n_j) shuffle_particles!(coords, grid, dxi, nxi, index, inject, max_xcell, offset, args)
     end
     
     return nothing
 end
 
-@parallel_indices (icell, jcell) function shuffle_particles!(coords::NTuple{2,T}, grid, dxi, nxi, index, inject, max_xcell, args) where T
+@parallel_indices (icell, jcell) function shuffle_particles!(coords::NTuple{2,T}, grid, dxi, nxi, index, inject, max_xcell, offset, args) where T
     nx, ny = nxi
-    if (icell ≤ nx-1) && (icell ≤ ny-1)
+    icell = offset + 2*(icell-1)
+    jcell = offset + 2*(jcell-1)
+    
+    if (icell ≤ nx-1) && (jcell ≤ ny-1)
         _shuffle_particles!(coords, grid, dxi, nxi, index, inject, max_xcell, icell, jcell, args)
     end
     return nothing
@@ -163,7 +168,7 @@ function isemptycell(
         end
     end
     return val > 0 ? false : true
-    end
+end
 
 function random_particles(nxcell, max_xcell, x, y, dx, dy, nx, ny)
     ncells = (nx - 1) * (ny - 1)
@@ -321,18 +326,22 @@ function main(Vx, Vy; nx=40, ny=40, nxcell=4, α = 2/3, nt = 1_000)
 
         t1 = @elapsed begin
             gathering!(T, pT, grid, pc)
+            # @btime gathering!($T, $pT, $grid, $pc)
 
             # advect particles in space
             advection_RK2!(particles, V, grid, dxi, dt, α)
+            # @btime advection_RK2!($particles, $V, $grid, $dxi, $dt, $α)
             
             # advect particles in memory
             shuffle_particles!(particles, grid, dxi, nxi, args)
+            # @btime shuffle_particles!($particles, $grid, $dxi, $nxi, $args)
 
             check_injection(particles.inject) && (
                 inject_particles!(particles, grid, nxi, dxi);
                 grid2particle!(pT, grid, T, particles.coords)
             )
-
+            # @btime grid2particle!($pT, $grid, $T, $(particles.coords))
+            
             # check_injection(particles.inject) && inject_particles!(particles, grid, nxi, dxi)
             # grid2particle!(pT, grid, T, particles.coords)
 
@@ -341,7 +350,7 @@ function main(Vx, Vy; nx=40, ny=40, nxcell=4, α = 2/3, nt = 1_000)
         it_time[it] = t1
 
 
-        (it % 10 == 0) && plot(x, y, T, particles, pT, it)
+        # (it % 10 == 0) && plot(x, y, T, particles, pT, it)
 
         it += 1
         t += dt
@@ -358,11 +367,15 @@ nt=1000
 Vx, Vy = load_benchmark_data("data/data41_benchmark.mat")
 Vx, Vy = CuArray(Vx), CuArray(Vy)
 
+ProfileCanvas.@profview  main(Vx, Vy; α = 2/3, nt=100)
+
 injected_rk2, t_rk2  =  main(Vx, Vy; α = 0.5, nt=5000)
 injected_heun, t_heun  =  main(Vx, Vy; α = 1.0, nt=5000)
-injected_23, t_23 =  @time main(Vx, Vy; α = 2/3, nt=1000)
+injected_23, t_23 =  main(Vx, Vy; α = 2/3, nt=1000)
 
-# @btime main($Vx, $Vy; α = $2/3, nt=$1000) #  1.202 s (156122 allocations: 109.18 MiB)
+
+# @btime main($Vx, $Vy; α = $2/3, nt=$1000) # CPU: 1.202 s (156122 allocations: 109.18 MiB)
+# @btime main($Vx, $Vy; α = $2/3, nt=$1000) # GPU: 0.445890 s (271.84 k allocations: 18.003 MiB)
 
 lines(cumsum(injected_rk2), color=:red)
 lines!(cumsum(injected_heun), color=:green)
@@ -404,4 +417,15 @@ scatter!([xc], [yc], color=:yellow, markersize = 10)
 idx = idx_range(first_cell_index(cell))
 scatter!(px[idx], py[idx], color=:red)
 
+p = rand()*10
+foo(p,dxi) = Int(p ÷ dxi[1] + 1)
+bar(p,dxi) = Int(fld(p, dxi[1]) + 1)
 
+fld(p, dxi[1]) + 1
+foo(p,dxi)
+
+@btime foo($p,$dxi)
+@btime bar($p,$dxi)
+
+f1(x) = x^3
+f2(x) = x*x*x

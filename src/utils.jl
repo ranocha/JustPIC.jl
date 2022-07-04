@@ -1,3 +1,4 @@
+# TODO preallocate buffers for gathering kernel
 struct Particles{N, M, I, T1, T2, T3}
     coords::NTuple{N,T1}
     index::T2
