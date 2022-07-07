@@ -1,174 +1,19 @@
-using MuladdMacro, MAT, CUDA
-using ParallelStencil
+ENV["PS_PACKAGE"] = :CUDA
+
+using JustPIC
+using MAT, CUDA
+# using MuladdMacro, MAT, CUDA
+# using ParallelStencil
 # using GLMakie
-using StencilInterpolations
-import StencilInterpolations: _grid2particle, parent_cell, isinside
+# using StencilInterpolations
+# import StencilInterpolations: _grid2particle, parent_cell, isinside
 
 push!(LOAD_PATH, "..")
+PS_PACKAGE = Symbol(ENV["PS_PACKAGE"])
 
-const PS_PACKAGE = :Threads
-
-@static if PS_PACKAGE == :CUDA
-    @init_parallel_stencil(package = CUDA, ndims = 2)
-    CUDA.allowscalar(false)
-elseif PS_PACKAGE == :Threads
-    @init_parallel_stencil(package = Threads, ndims = 2)
-end
-
-include("../src/utils.jl")
-include("../src/advection.jl")
-include("../src/injection.jl")
+include("../src/data.jl")
 
 ## -------------------------------------------------------------
-
-function load_benchmark_data(filename)
-    params = matread(filename)
-    return params["Vxp"], params["Vyp"]
-end
-
-function save_timestep!(fname, p, t)
-    matwrite(
-        fname, Dict("pX" => Array(p[1]), "pY" => Array(p[2]), "time" => t); compress=true
-    )
-    return nothing
-end
-
-# function shuffle_particles2!(particles, grid, dxi, nxi, args)
-#     nx, ny = nxi
-#     # iterate over cells
-#     # for i in 1:2
-#     #     for icell in i:2:(nx - 1), jcell in i:2:(ny - 1)
-#     #         _shuffle_particles!(particles, grid, dxi, nxi, icell, jcell)
-#     #     end
-#     # end
-
-#     for icell in 1:(nx - 1), jcell in 1:(ny - 1)
-#         _shuffle_particles!(particles, grid, dxi, nxi, icell, jcell, args)
-#     end
-# end
-
-function shuffle_particles!(particles::Particles, grid, dxi, nxi::NTuple{N, T}, args) where {N,T}
-    # unpack
-    (; coords, index, inject, max_xcell) = particles
-    nx, ny = nxi
-   
-    # TODO add offset to indices to avoid race conditions
-    n_i = ceil(Int, nx*(1/N))
-    n_j = ceil(Int, ny*(1/N))
-    for offset in 1:N
-       @parallel (1:n_i, 1:n_j) shuffle_particles!(coords, grid, dxi, nxi, index, inject, max_xcell, offset, args)
-    end
-    
-    return nothing
-end
-
-@parallel_indices (icell, jcell) function shuffle_particles!(coords::NTuple{2,T}, grid, dxi, nxi, index, inject, max_xcell, offset, args) where T
-    nx, ny = nxi
-    icell = offset + 2*(icell-1)
-    jcell = offset + 2*(jcell-1)
-    
-    if (icell ≤ nx-1) && (jcell ≤ ny-1)
-        _shuffle_particles!(coords, grid, dxi, nxi, index, inject, max_xcell, icell, jcell, args)
-    end
-    return nothing
-end
-
-function _shuffle_particles!(coords, grid, dxi, nxi, index, inject, max_xcell, icell, jcell, args::NTuple{N,T}) where {N, T}
-    
-    px, py = coords
-    nx, ny = nxi
-
-    # closures --------------------------------------
-    first_cell_index(i) = (i - 1) * max_xcell + 1
-    idx_range(i) = i:(i + max_xcell - 1)
-    
-    function find_free_memory(indices)
-        for i in indices
-            index[i] == 0 && return i
-        end
-        return 0
-    end
-    # -----------------------------------------------
-
-    # current (parent) cell (i.e. cell in the center of the cell-block)
-    parent = cart2lin(icell, jcell, nx-1)
-    # coordinate of the lower-most-left coordinate of the parent cell 
-    corner_xi = corner_coordinate(grid, icell, jcell)
-    i0_parent = first_cell_index(parent)
-
-    # # iterate over neighbouring (child) cells
-    for child in neighbouring_cells(icell, jcell, nx, ny)
-
-        # ignore parent cell
-        if parent != child
-            # index where particles inside the child cell start in the particle array
-            i0_child = first_cell_index(child)
-
-            # iterate over particles in child cell 
-            for j in idx_range(i0_child)
-
-                if index[j]
-                    p_child = (px[j], py[j])
-
-                    # check that the particle is inside the grid
-                    if isincell(p_child, corner_xi, dxi)
-                        # hold particle variables to move
-                        current_idx = j
-                        current_px = px[current_idx]
-                        current_py = py[current_idx]
-
-                        current_args = ntuple(Val(N)) do i
-                            args[i][current_idx]
-                        end
-
-                        # remove particle from old cell
-                        index[j] = false
-                        px[j] = NaN
-                        py[j] = NaN
-
-                        for k in eachindex(args)
-                            args[k][j] = NaN
-                        end
-
-                        # move particle to new cell
-                        free_idx = find_free_memory(idx_range(i0_parent))
-                        free_idx == 0 && continue 
-
-                        # move it to the first free memory location
-                        index[free_idx] = true
-                        px[free_idx] = current_px
-                        py[free_idx] = current_py
-
-                        for k in eachindex(args)
-                            args[k][free_idx] = current_args[k]
-                        end
-
-                    end
-                end
-            end
-        end
-    end
-
-    # true if cell is totally empty (i.e. we need to inject new particles in it)
-    inject[parent] = isemptycell(i0_parent, index, max_xcell)
-
-    return nothing
-end
-
-function isemptycell(
-    idx::Integer, index::AbstractArray{T,N}, max_xcell::Integer
-) where {T,N}
-    # closures
-    idx_range(i) = i:(i + max_xcell - 1)
-    
-    val = 0
-    for j in idx_range(idx)
-        if index[j]
-            val += 1
-        end
-    end
-    return val > 0 ? false : true
-end
 
 function random_particles(nxcell, max_xcell, x, y, dx, dy, nx, ny)
     ncells = (nx - 1) * (ny - 1)
@@ -202,7 +47,9 @@ function twoxtwo_particles(nxcell, max_xcell, x, y, dx, dy, nx, ny, lx, ly)
     ncells = (nx - 1) * (ny - 1)
     np = max_xcell * ncells
     px, py, pT = ntuple(_ -> fill(NaN, np), Val(3))
-    
+
+    min_xcell = ceil(Int, nxcell / 2)
+
     # index = zeros(UInt32, np)
     inject = falses(ncells)
     index = falses(np)
@@ -214,82 +61,37 @@ function twoxtwo_particles(nxcell, max_xcell, x, y, dx, dy, nx, ny, lx, ly)
         # index of first particle in cell
         idx = (cell - 1) * max_xcell + 1
         # add 4 new particles in a 2x2 manner + some small random perturbation
-        px[idx]   = x0 + dx*(1/3)*(1.0 + (rand()-0.5))
-        px[idx+1] = x0 + dx*(2/3)*(1.0 + (rand()-0.5))
-        px[idx+2] = x0 + dx*(1/3)*(1.0 + (rand()-0.5))
-        px[idx+3] = x0 + dx*(2/3)*(1.0 + (rand()-0.5))
-        py[idx]   = y0 + dy*(1/3)*(1.0 + (rand()-0.5))
-        py[idx+1] = y0 + dy*(1/3)*(1.0 + (rand()-0.5))
-        py[idx+2] = y0 + dy*(2/3)*(1.0 + (rand()-0.5))
-        py[idx+3] = y0 + dy*(2/3)*(1.0 + (rand()-0.5))
+        px[idx] = x0 + dx * (1 / 3) * (1.0 + (rand() - 0.5))
+        px[idx + 1] = x0 + dx * (2 / 3) * (1.0 + (rand() - 0.5))
+        px[idx + 2] = x0 + dx * (1 / 3) * (1.0 + (rand() - 0.5))
+        px[idx + 3] = x0 + dx * (2 / 3) * (1.0 + (rand() - 0.5))
+        py[idx] = y0 + dy * (1 / 3) * (1.0 + (rand() - 0.5))
+        py[idx + 1] = y0 + dy * (1 / 3) * (1.0 + (rand() - 0.5))
+        py[idx + 2] = y0 + dy * (2 / 3) * (1.0 + (rand() - 0.5))
+        py[idx + 3] = y0 + dy * (2 / 3) * (1.0 + (rand() - 0.5))
         # fill index array
-        for l in idx:(idx+nxcell-1) 
+        for l in idx:(idx + nxcell - 1)
             # index[l] = l
             index[l] = true
             pT[l] = exp(
-                -(
-                    (x0 + px[l] * dx - lx / 2)^2 +
-                    (y0 + py[l] * dy - ly / 2)^2
-                ) / rad2,
+                -((x0 + px[l] * dx - lx / 2)^2 + (y0 + py[l] * dy - ly / 2)^2) / rad2
             )
         end
     end
 
     if PS_PACKAGE === :CUDA
         pxi = CuArray.((px, py))
-        return Particles(pxi, CuArray(index), CuArray(inject), nxcell, max_xcell, np), CuArray(pT)
+        return Particles(
+            pxi, CuArray(index), CuArray(inject), nxcell, max_xcell, min_xcell, np, (nx, ny)
+        ),
+        CuArray(pT)
 
     else
-        return Particles((px, py), index, inject, nxcell, max_xcell, np), pT
+        return Particles((px, py), index, inject, nxcell, max_xcell, min_xcell, np, (nx, ny)), pT
     end
 end
 
-function foo(i)
-    if i < 10
-        return "0000$i"
-
-    elseif 10 ≤ i ≤ 99
-        return "000$i"
-
-    elseif 100 ≤ i ≤ 999
-        return "00$i"
-
-    elseif 1000 ≤ i ≤ 9999
-        return "0$i"
-    end
-end
-
-function plot(x, y, T, particles, pT, it)
-
-    pX, pY = Array.(particles.coords)
-    pidx = Array(particles.index)
-    ii = findall(x->x==true, pidx)
-    
-    cmap = :jet
-
-    f = Figure(resolution = (900, 450))
-    ax1 = Axis(f[1,1])
-    scatter!(ax1, pX[ii], pY[ii], color = Array(pT[ii]), colorrange=(0,1), colormap=cmap)
-    
-    ax2 = Axis(f[1,2])
-    hm = heatmap!(ax2, x, y, Array(T), colorrange=(0,1), colormap=cmap)
-    Colorbar(f[1,3], hm)
-
-    hideydecorations!(ax2)
-
-    for ax in (ax1, ax2)
-        xlims!(ax, 0, 10)
-        ylims!(ax, 0, 10)
-    end
-f
-    fi = foo(it)
-    fname = joinpath("imgs", "fig_$(fi).png")
-    save(fname, f)
-
-    return f
-end
-
-function main(Vx, Vy; nx=40, ny=40, nxcell=4, α = 2/3, nt = 1_000)
+function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
     V = (Vx, Vy)
     vx0, vy0 = maximum(abs.(Vx)), maximum(abs.(Vy))
 
@@ -302,130 +104,74 @@ function main(Vx, Vy; nx=40, ny=40, nxcell=4, α = 2/3, nt = 1_000)
     y = LinRange(0, ly, ny)
     grid = (x, y)
 
-    T = PS_PACKAGE === :CUDA ? CuMatrix{Float64}(undef, nx, ny) : Matrix{Float64}(undef, nx, ny)
+    T = PS_PACKAGE === :CUDA ? CUDA.zeros(Float64, nx, ny) : zeros(nx, ny)
+    T0 = similar(T)
 
     # random particles
     max_xcell = nxcell * 2
     # particles = random_particles(nxcell, max_xcell, x, y, dx, dy, nx, ny)
     particles, pT = twoxtwo_particles(nxcell, max_xcell, x, y, dx, dy, nx, ny, lx, ly)
 
-    # particle_coords_cpu = (px, py)
-    # particle_coords = CuArray.(particle_coords_cpu)
-    pc = particles.coords
-
     # field to interpolate
     dt = min(dx, dy) / max(abs(vx0), abs(vy0)) * 0.25
     it = 1
     t = 0.0
     nsave = 10
-    injected_cells = Vector{Int64}(undef,nt)
-    it_time = Vector{Float64}(undef,nt)
+    injected_cells = Vector{Int64}(undef, nt)
+    it_time = Vector{Float64}(undef, nt)
 
-    args = (pT, )
+    args = (pT,)
+    
     while it ≤ nt
+        if it == nt ÷ 2
+            dt = -dt
+        end
 
         t1 = @elapsed begin
-            gathering!(T, pT, grid, pc)
-            # @btime gathering!($T, $pT, $grid, $pc)
+            gathering!(T, pT, grid, particles.coords, particles.upper_buffer, particles.lower_buffer)
 
             # advect particles in space
             advection_RK2!(particles, V, grid, dxi, dt, α)
-            # @btime advection_RK2!($particles, $V, $grid, $dxi, $dt, $α)
-            
+
             # advect particles in memory
             shuffle_particles!(particles, grid, dxi, nxi, args)
-            # @btime shuffle_particles!($particles, $grid, $dxi, $nxi, $args)
 
             check_injection(particles.inject) && (
                 inject_particles!(particles, grid, nxi, dxi);
                 grid2particle!(pT, grid, T, particles.coords)
             )
-            # @btime grid2particle!($pT, $grid, $T, $(particles.coords))
-            
-            # check_injection(particles.inject) && inject_particles!(particles, grid, nxi, dxi)
-            # grid2particle!(pT, grid, T, particles.coords)
-
         end
 
         it_time[it] = t1
-
-
-        # (it % 10 == 0) && plot(x, y, T, particles, pT, it)
-
         it += 1
-        t += dt
+
+        viz && (it % nsave == 0) && plot(x, y, T, particles, pT, it)
+
     end
 
     return injected_cells, it_time
-
 end
 
-nx=ny=40
-nxcell=4
-nt=1000
-α = 2/3
+
+nx = ny = 42
+nxcell = 4
+nt = 1000
+α = 2 / 3
+
 Vx, Vy = load_benchmark_data("data/data41_benchmark.mat")
 Vx, Vy = CuArray(Vx), CuArray(Vy)
+injected_23, t_23 = main(Vx, Vy; nx=nx, ny=ny, α=2 / 3, nt=1000, viz = false)
 
-ProfileCanvas.@profview  main(Vx, Vy; α = 2/3, nt=100)
-
-injected_rk2, t_rk2  =  main(Vx, Vy; α = 0.5, nt=5000)
-injected_heun, t_heun  =  main(Vx, Vy; α = 1.0, nt=5000)
-injected_23, t_23 =  main(Vx, Vy; α = 2/3, nt=1000)
-
+injected_rk2, t_rk2 = main(Vx, Vy; α=0.5, nt=1000)
+injected_heun, t_heun = main(Vx, Vy; α=1.0, nt=1000)
 
 # @btime main($Vx, $Vy; α = $2/3, nt=$1000) # CPU: 1.202 s (156122 allocations: 109.18 MiB)
-# @btime main($Vx, $Vy; α = $2/3, nt=$1000) # GPU: 0.445890 s (271.84 k allocations: 18.003 MiB)
+# @btime main($Vx, $Vy; nx=$40, ny=$40, α = $2/3, nt=$1000) # GPU: 0.445890 s (271.84 k allocations: 18.003 MiB)
 
-lines(cumsum(injected_rk2), color=:red)
-lines!(cumsum(injected_heun), color=:green)
-lines!(cumsum(injected_23), color=:blue)
+lines(cumsum(injected_rk2); color=:red)
+lines!(cumsum(injected_heun); color=:green)
+lines!(cumsum(injected_23); color=:blue)
 
-
-lines(cumsum(t_rk2), color=:red)
-lines!(cumsum(t_heun), color=:green)
-lines!(cumsum(t_23), color=:blue)
-
-# main(Vx, Vy) # 426.857 μs (29 allocations: 172.78 KiB) 
-# @btime main($Vx, $Vy) # 426.857 μs (29 allocations: 172.78 KiB) 
-
-# # Vx, Vy = load_benchmark_data("data/data41_benchmark.mat")
-# # Vx, Vy = CuArray(Vx), CuArray(Vy)
-# # @btime main($Vx_dev, $Vy_dev) # 161.419 μs (213 allocat
-
-first_cell_index(i) = (i - 1) * max_xcell + 1
-idx_range(i) = i:(i + max_xcell - 1)
-
-parent = cart2lin(40, 1, nx)
-
-X = [x for x in x, y in y]
-Y = [y for x in x, y in y]
-
-px, py = particles.coords
-pidx = particles.index
-ii = findall(x->x==true, pidx)
-f,ax,s=scatter(px[ii], py[ii])
-scatter!(ax,vec(X),vec(Y),color=:black)
-f
-
-ii=findall(particles.inject)
-cell = ii[1]
-icell, jcell = i2s[cell].I
-xc, yc = corner_coordinate(grid, icell, jcell)
-scatter!([xc], [yc], color=:yellow, markersize = 10)
-
-idx = idx_range(first_cell_index(cell))
-scatter!(px[idx], py[idx], color=:red)
-
-p = rand()*10
-foo(p,dxi) = Int(p ÷ dxi[1] + 1)
-bar(p,dxi) = Int(fld(p, dxi[1]) + 1)
-
-fld(p, dxi[1]) + 1
-foo(p,dxi)
-
-@btime foo($p,$dxi)
-@btime bar($p,$dxi)
-
-f1(x) = x^3
-f2(x) = x*x*x
+lines(cumsum(t_rk2); color=:red)
+lines!(cumsum(t_heun); color=:green)
+lines!(cumsum(t_23); color=:blue)

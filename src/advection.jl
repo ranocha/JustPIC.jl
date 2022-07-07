@@ -63,7 +63,6 @@ end
 @parallel_indices (i) function advection_RK2!(
     px, py, pz, V::NTuple{3,T1}, index::AbstractVector{T2}, grid, dxi, dt, α
 ) where {T1,T2}
-
     if i ≤ length(px) && index[i] === true
         pᵢ = (px[i], py[i], pz[i])
         px[i], py[i], pz[i] = _advection_RK2(pᵢ, V, grid, dxi, dt; α=α)
@@ -75,7 +74,6 @@ end
 @parallel_indices (i) function advection_RK2!(
     px, py, V::NTuple{2,T1}, index::AbstractVector{T2}, grid, dxi, dt, α
 ) where {T1,T2}
-
     if i ≤ length(px) && index[i] === true
         pᵢ = (px[i], py[i])
         px[i], py[i] = _advection_RK2(pᵢ, V, grid, dxi, dt; α=α)

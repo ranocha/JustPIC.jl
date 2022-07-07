@@ -1,21 +1,3 @@
-# TODO preallocate buffers for gathering kernel
-struct Particles{N, M, I, T1, T2, T3}
-    coords::NTuple{N,T1}
-    index::T2
-    inject::T3
-    nxcell::I
-    max_xcell::I
-    min_xcell::I
-    np::I
-
-    function Particles(coords::NTuple{N,T1}, index, inject, nxcell, max_xcell, np) where {N,T1}
-        I = typeof(np)
-        T2 = typeof(index)
-        T3 = typeof(inject)
-        new{N, max_xcell, I, T1, T2, T3}(coords, index, inject, nxcell, max_xcell, 0, np)
-    end
-end
-
 # Color grid so that all elements containing the i-th node have a different color.
 # During threaded assembly each thread acts upon a single color. In this way, we 
 # can multithread along each color avoiding synchronisations between threads. It 
@@ -114,4 +96,30 @@ end
     pz > zc + dz && return false
     # otherwise particle is inside the cell
     return true
+end
+
+function isemptycell(
+    idx::Integer, index::AbstractArray{T,N}, max_xcell::Integer, min_xcell::Integer
+) where {T,N}
+    # closures
+    idx_range(i) = i:(i + max_xcell - 1)
+
+    val = 0
+    for j in idx_range(idx)
+        if index[j]
+            val += 1
+        end
+    end
+    return val > min_xcell ? false : true
+end
+
+@parallel_indices (i) function copy_vectors!(
+    dest::NTuple{N,T}, src::NTuple{N,T}
+) where {N,T<:AbstractArray}
+    for n in 1:N
+        if i ≤ length(dest[n])
+            dest[n][i] = src[n][i]
+        end
+    end
+    return nothing
 end
