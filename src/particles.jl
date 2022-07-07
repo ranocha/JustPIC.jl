@@ -13,7 +13,7 @@ struct Particles{N,M,I,T1,T2,T3,T4}
     function Particles(
         coords::NTuple{N,T1}, index, inject, nxcell::I, max_xcell::I, min_xcell::I, np::I, nxi
     ) where {N,I,T1}
-        
+                
         # types
         T2 = typeof(index)
         T3 = typeof(inject)
@@ -24,7 +24,7 @@ struct Particles{N,M,I,T1,T2,T3,T4}
         else
             [Array{T, N}(undef, nxi...) for _ in 1:Threads.nthreads()]
         end
-        lower_buffer = similar(upper_buffer)
+        lower_buffer = similar.(upper_buffer)
         T4 = typeof(lower_buffer)
 
         return new{N, max_xcell, I, T1, T2, T3, T4}(

@@ -1,4 +1,4 @@
-ENV["PS_PACKAGE"] = :CUDA
+ENV["PS_PACKAGE"] = :Threads
 
 using JustPIC
 using MAT, CUDA
@@ -136,6 +136,8 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
             # advect particles in memory
             shuffle_particles!(particles, grid, dxi, nxi, args)
 
+            injected_cells[it] = sum(particles.inject)
+
             check_injection(particles.inject) && (
                 inject_particles!(particles, grid, nxi, dxi);
                 grid2particle!(pT, grid, T, particles.coords)
@@ -152,18 +154,17 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
     return injected_cells, it_time
 end
 
-
 nx = ny = 42
 nxcell = 4
 nt = 1000
 α = 2 / 3
 
 Vx, Vy = load_benchmark_data("data/data41_benchmark.mat")
-Vx, Vy = CuArray(Vx), CuArray(Vy)
-injected_23, t_23 = main(Vx, Vy; nx=nx, ny=ny, α=2 / 3, nt=1000, viz = false)
+# Vx, Vy = CuArray(Vx), CuArray(Vy)
 
-injected_rk2, t_rk2 = main(Vx, Vy; α=0.5, nt=1000)
-injected_heun, t_heun = main(Vx, Vy; α=1.0, nt=1000)
+injected_23, t_23 = main(Vx, Vy; nx=nx, ny=ny, α=2 / 3, nt=1000, viz = false)
+injected_rk2, t_rk2 = main(Vx, Vy; nx=nx, ny=ny, α=0.5, nt=1000)
+injected_heun, t_heun = main(Vx, Vy; nx=nx, ny=ny, α=1.0, nt=1000)
 
 # @btime main($Vx, $Vy; α = $2/3, nt=$1000) # CPU: 1.202 s (156122 allocations: 109.18 MiB)
 # @btime main($Vx, $Vy; nx=$40, ny=$40, α = $2/3, nt=$1000) # GPU: 0.445890 s (271.84 k allocations: 18.003 MiB)
@@ -175,3 +176,14 @@ lines!(cumsum(injected_23); color=:blue)
 lines(cumsum(t_rk2); color=:red)
 lines!(cumsum(t_heun); color=:green)
 lines!(cumsum(t_23); color=:blue)
+
+df = DataFrame(
+    injected_23 = injected_23,
+    injected_rk2 = injected_rk2,
+    injected_heun = injected_heun,
+    t_23 = t_23,
+    t_rk2 = t_rk2,
+    t_heun = t_heun,
+)
+
+CSV.write("CPU_baseline.csv", df)
