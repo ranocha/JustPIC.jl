@@ -11,9 +11,16 @@ struct Particles{N,M,I,T1,T2,T3,T4}
     np::I
 
     function Particles(
-        coords::NTuple{N,T1}, index, inject, nxcell::I, max_xcell::I, min_xcell::I, np::I, nxi
+        coords::NTuple{N,T1},
+        index,
+        inject,
+        nxcell::I,
+        max_xcell::I,
+        min_xcell::I,
+        np::I,
+        nxi,
     ) where {N,I,T1}
-                
+
         # types
         T2 = typeof(index)
         T3 = typeof(inject)
@@ -22,18 +29,31 @@ struct Particles{N,M,I,T1,T2,T3,T4}
         upper_buffer = if PS_PACKAGE === :CUDA
             CUDA.zeros(T, nxi...)
         else
-            [Array{T, N}(undef, nxi...) for _ in 1:Threads.nthreads()]
+            [Array{T,N}(undef, nxi...) for _ in 1:Threads.nthreads()]
         end
         lower_buffer = similar.(upper_buffer)
         T4 = typeof(lower_buffer)
 
-        return new{N, max_xcell, I, T1, T2, T3, T4}(
-            coords, index, inject, upper_buffer, lower_buffer, nxcell, max_xcell, min_xcell, np
+        return new{N,max_xcell,I,T1,T2,T3,T4}(
+            coords,
+            index,
+            inject,
+            upper_buffer,
+            lower_buffer,
+            nxcell,
+            max_xcell,
+            min_xcell,
+            np,
         )
     end
 end
 
-
+function particle2grid!(F, Fp, grid, particles::Particles)
+    gathering!(
+        F, Fp, grid, particles.coords, particles.upper_buffer, particles.lower_buffer
+    )
+    return nothing
+end
 
 function init_particles(nxcell, max_xcell, min_xcell, x, y, dx, dy, nx, ny)
     rad2 = 2.0
@@ -74,6 +94,8 @@ function init_particles(nxcell, max_xcell, min_xcell, x, y, dx, dy, nx, ny)
         )
 
     else
-        return Particles((px, py), index, inject, nxcell, max_xcell, min_xcell, np, (nx, ny))
+        return Particles(
+            (px, py), index, inject, nxcell, max_xcell, min_xcell, np, (nx, ny)
+        )
     end
 end

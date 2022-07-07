@@ -55,8 +55,6 @@ function plot(x, y, T, particles, pT, it)
     return f
 end
 
-
-
 # function shuffle_particles!(particles, grid, dxi, nxi, args)
 #     nx, ny = nxi
 #     # unpack

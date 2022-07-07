@@ -143,7 +143,6 @@ function _shuffle_particles!(
                         for k in eachindex(args)
                             args[k][free_idx] = current_args[k]
                         end
-
                     end
                 end
             end

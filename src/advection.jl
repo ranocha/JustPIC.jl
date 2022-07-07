@@ -20,7 +20,7 @@ function _advection_RK2(
     x1 = ntuple(ValN) do i
         xtmp = x0[i] + vp0[i] * α * dt
         min_L, max_L = grid_lims[i]
-        clamp(xtmp, min_L * 1.01, max_L * 0.99)
+        clamp(xtmp, min_L + dxi[i]*0.01, max_L - dxi[i]*0.01)
     end
 
     # interpolate velocity to new location
@@ -36,14 +36,18 @@ function _advection_RK2(
             @muladd x0[i] + dt * ((1.0 - 0.5 * _α) * vp0[i] + 0.5 * _α * vp1[i])
         end
         min_L, max_L = grid_lims[i]
-        clamp(xtmp, min_L * 1.01, max_L * 0.99)
+        clamp(xtmp, min_L + dxi[i]*0.01, max_L - dxi[i]*0.01)
     end
 
     return xf
 end
 
-function advection_RK2!(particles::Particles, V, grid, dxi::NTuple{3,T}, dt, α) where {T}
+function advection_RK2!(particles::Particles, V, grid::NTuple{3,T}, dt, α) where {T}
     (; coords, index, np) = particles
+    dxi = ntuple(Val(2)) do i
+        lo, hi = extrema(grid[i])
+        hi - lo
+    end
     px, py, pz = coords
     xci = minimum.(grid)
 
@@ -52,8 +56,12 @@ function advection_RK2!(particles::Particles, V, grid, dxi::NTuple{3,T}, dt, α)
     return nothing
 end
 
-function advection_RK2!(particles::Particles, V, grid, dxi::NTuple{2,T}, dt, α) where {T}
+function advection_RK2!(particles::Particles, V, grid::NTuple{2,T}, dt, α) where {T}
     (; coords, index, np) = particles
+    dxi = ntuple(Val(3)) do i
+        lo, hi = extrema(grid[i])
+        hi - lo
+    end
     px, py = coords
     xci = minimum.(grid)
 
@@ -65,7 +73,6 @@ end
 @parallel_indices (i) function advection_RK2!(
     px, py, pz, V::NTuple{3,T1}, index::AbstractVector{T2}, grid, xci, dxi, dt, α
 ) where {T1,T2}
-
     if i ≤ length(px) && index[i] === true
         pᵢ = (px[i], py[i], pz[i])
         px[i], py[i], pz[i] = _advection_RK2(pᵢ, V, grid, xci, dxi, dt; α=α)
