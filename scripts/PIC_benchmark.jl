@@ -1,3 +1,5 @@
+ENV["PS_PACKAGE"] = :Threads
+
 using JustPIC, CUDA, MAT
 CUDA.allowscalar(false)
 
@@ -366,4 +368,4 @@ function main()
     return nothing
 end
 
-main()
+# main()

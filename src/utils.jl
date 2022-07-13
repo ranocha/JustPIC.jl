@@ -6,27 +6,61 @@ function neighbouring_cells(I::NTuple{N,T}, nxi::NTuple{N,T}) where {N,T}
     return neighbouring_cells(I..., nxi...)
 end
 
+# function neighbouring_cells(i, j, nx, ny)
+#     # nx -= 1
+#     # ny -= 1
+#     nxi = (nx, ny)
+#     idx = (
+#         cart2lin((clamp(i - 1, 1, nx), clamp(j - 1, 1, ny)), nxi),
+#         cart2lin((clamp(i, 1, nx), clamp(j - 1, 1, ny)), nxi),
+#         cart2lin((clamp(i + 1, 1, nx), clamp(j - 1, 1, ny)), nxi),
+#         cart2lin((clamp(i - 1, 1, nx), clamp(j, 1, ny)), nxi),
+#         cart2lin((clamp(i + 1, 1, nx), clamp(j, 1, ny)), nxi),
+#         cart2lin((clamp(i - 1, 1, nx), clamp(j + 1, 1, ny)), nxi),
+#         cart2lin((clamp(i, 1, nx), clamp(j + 1, 1, ny)), nxi),
+#         cart2lin((clamp(i + 1, 1, nx), clamp(j + 1, 1, ny)), nxi),
+#     )
+#     return idx
+# end
+
+# function neighbouring_cells(i, j, k, nx, ny, nz)
+#     # nx -= 1
+#     # ny -= 1
+#     # nz -= 1
+#     nxi = (nx, ny, nz)
+#     idx = (
+#         cart2lin((clamp(i - 1, 1, nx), clamp(j - 1, 1, ny), clamp(k - 1, 1, nz)), nxi),
+#         cart2lin((clamp(i, 1, nx), clamp(j - 1, 1, ny), clamp(k - 1, 1, nz)), nxi),
+#         cart2lin((clamp(i + 1, 1, nx), clamp(j - 1, 1, ny), clamp(k - 1, 1, nz)), nxi),
+#         cart2lin((clamp(i - 1, 1, nx), clamp(j, 1, ny), clamp(k - 1, 1, nz)), nxi),
+#         cart2lin((clamp(i - 1, 1, nx), clamp(j - 1, 1, ny), clamp(k, 1, nz)), nxi),
+#         cart2lin((clamp(i, 1, nx), clamp(j - 1, 1, ny), clamp(k, 1, nz)), nxi),
+#         cart2lin((clamp(i + 1, 1, nx), clamp(j - 1, 1, ny), clamp(k, 1, nz)), nxi),
+#         cart2lin((clamp(i - 1, 1, nx), clamp(j, 1, ny), clamp(k, 1, nz)), nxi),
+#         cart2lin((clamp(i - 1, 1, nx), clamp(j - 1, 1, ny), clamp(k + 1, 1, nz)), nxi),
+#         cart2lin((clamp(i, 1, nx), clamp(j - 1, 1, ny), clamp(k + 1, 1, nz)), nxi),
+#         cart2lin((clamp(i + 1, 1, nx), clamp(j - 1, 1, ny), clamp(k + 1, 1, nz)), nxi),
+#         cart2lin((clamp(i - 1, 1, nx), clamp(j, 1, ny), clamp(k + 1, 1, nz)), nxi),
+#     )
+#     return idx
+# end
+
 function neighbouring_cells(i, j, nx, ny)
-    nx -= 1
-    ny -= 1
     nxi = (nx, ny)
     idx = (
-        cart2lin((clamp(i - 1, 1, nx), clamp(j - 1, 1, ny)), nxi),
-        cart2lin((clamp(i, 1, nx), clamp(j - 1, 1, ny)), nxi),
-        cart2lin((clamp(i + 1, 1, nx), clamp(j - 1, 1, ny)), nxi),
-        cart2lin((clamp(i - 1, 1, nx), clamp(j, 1, ny)), nxi),
-        cart2lin((clamp(i + 1, 1, nx), clamp(j, 1, ny)), nxi),
-        cart2lin((clamp(i - 1, 1, nx), clamp(j + 1, 1, ny)), nxi),
-        cart2lin((clamp(i, 1, nx), clamp(j + 1, 1, ny)), nxi),
-        cart2lin((clamp(i + 1, 1, nx), clamp(j + 1, 1, ny)), nxi),
+        (clamp(i - 1, 1, nx), clamp(j - 1, 1, ny)),
+        (clamp(i    , 1, nx), clamp(j - 1, 1, ny)),
+        (clamp(i + 1, 1, nx), clamp(j - 1, 1, ny)),
+        (clamp(i - 1, 1, nx), clamp(j    , 1, ny)),
+        (clamp(i + 1, 1, nx), clamp(j    , 1, ny)),
+        (clamp(i - 1, 1, nx), clamp(j + 1, 1, ny)),
+        (clamp(i    , 1, nx), clamp(j + 1, 1, ny)),
+        (clamp(i + 1, 1, nx), clamp(j + 1, 1, ny)),
     )
     return idx
 end
 
 function neighbouring_cells(i, j, k, nx, ny, nz)
-    nx -= 1
-    ny -= 1
-    nz -= 1
     nxi = (nx, ny, nz)
     idx = (
         cart2lin((clamp(i - 1, 1, nx), clamp(j - 1, 1, ny), clamp(k - 1, 1, nz)), nxi),
@@ -106,9 +140,18 @@ function isemptycell(
 
     val = 0
     for j in idx_range(idx)
-        if index[j]
-            val += 1
-        end
+        @inbounds index[j] && (val += 1)
+    end
+    return val > min_xcell ? false : true
+end
+
+function isemptycell(
+    icell::Integer, jcell::Integer, index::AbstractArray{T,N}, min_xcell::Integer
+) where {T,N}
+
+    val = 0
+    for i in axes(index, 1)
+        @inbounds index[i, icell, jcell] && (val += 1)
     end
     return val > min_xcell ? false : true
 end

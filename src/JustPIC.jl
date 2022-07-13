@@ -4,8 +4,7 @@ using MuladdMacro
 # using CUDA
 using ParallelStencil
 
-include("/home/albert/Desktop/StencilInterpolations.jl/src/StencilInterpolations.jl")
-
+include("C:/Users/albert/Desktop/StencilInterpolations.jl/src/StencilInterpolations.jl")
 using .StencilInterpolations
 
 import .StencilInterpolations: _grid2particle, parent_cell, isinside

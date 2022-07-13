@@ -57,7 +57,7 @@ end
     i = offset + 2 * (icell - 1) + offset_x
     j = offset + 2 * (jcell - 1) + offset_y
 
-    if (i ≤ nx) && (j ≤ ny)
+    if (i < nx) && (j < ny)
         _shuffle_particles!(
             px, py, grid, dxi, nxi, index, inject, max_xcell, min_xcell, i, j, args
         )
@@ -79,68 +79,70 @@ function _shuffle_particles!(
     jcell,
     args::NTuple{N,T},
 ) where {N,T}
-
     nx, ny = nxi
-    
+
     # closures --------------------------------------
-    child_index(i,j) = (clamp(icell + i, 1, nx), clamp(icell + j, 1, ny))
-    function find_free_memory(icell, jcell)
-        for i in axes(index,1)
-            index[i, icell, jcell] == 0 && return i
+    first_cell_index(i) = (i - 1) * max_xcell + 1
+    idx_range(i) = i:(i + max_xcell - 1)
+
+    function find_free_memory(indices)
+        for i in indices
+            index[i] == 0 && return i
         end
         return 0
     end
     # -----------------------------------------------
 
+    # current (parent) cell (i.e. cell in the center of the cell-block)
+    parent = cart2lin(icell, jcell, nx - 1)
     # coordinate of the lower-most-left coordinate of the parent cell 
     corner_xi = corner_coordinate(grid, icell, jcell)
+    i0_parent = first_cell_index(parent)
 
     # # iterate over neighbouring (child) cells
-    for i in -1:1, j in -1:1
-        child = child_index(i,j) 
+    for child in neighbouring_cells(icell, jcell, nx, ny)
 
         # ignore parent cell
         if parent != child
+            # index where particles inside the child cell start in the particle array
+            i0_child = first_cell_index(child)
 
             # iterate over particles in child cell 
-            for ip in axes(px, 1)
-                if index[ip, icell, jcell]
-                    p_child = (px[ip, icell, jcell], py[ip, icell, jcell])
+            for j in idx_range(i0_child)
+                if index[j]
+                    p_child = (px[j], py[j])
 
                     # check that the particle is inside the grid
                     if isincell(p_child, corner_xi, dxi)
                         # hold particle variables to move
-                        current_px = px[ip, icell, jcell]
-                        current_py = py[ip, icell, jcell]
+                        current_px = px[j]
+                        current_py = py[j]
 
                         (isnan(current_px) || isnan(current_py)) && continue
 
-                        # cache out fields to move in the memory
-                        current_args = ntuple(i -> args[i][ip, icell, jcell], Val(N))
+                        current_args = ntuple(i -> args[i][j], Val(N))
 
                         # remove particle from old cell
-                        index[ip, icell, jcell] = false
-                        px[ip, icell, jcell] = NaN
-                        py[ip, icell, jcell] = NaN
+                        index[j] = false
+                        px[j] = NaN
+                        py[j] = NaN
 
-                        for t in eachindex(args)
-                            args[t][ip, icell, jcell] = NaN
+                        for k in eachindex(args)
+                            args[k][j] = NaN
                         end
 
                         # move particle to new cell
-                        free_idx = find_free_memory(icell, jcell)
-                        # check whether current index is free
-                        free_idx == 0 && continue 
+                        free_idx = find_free_memory(idx_range(i0_parent))
+                        free_idx == 0 && continue
 
                         # move it to the first free memory location
-                        index[free_idx, icell, jcell] = true
-                        px[free_idx, icell, jcell] = current_px
-                        py[free_idx, icell, jcell] = current_py
-                        # move fields in the memory
-                        for t in eachindex(args)
-                            args[t][free_idx, icell, jcell] = current_args[t]
-                        end
+                        index[free_idx] = true
+                        px[free_idx] = current_px
+                        py[free_idx] = current_py
 
+                        for k in eachindex(args)
+                            args[k][free_idx] = current_args[k]
+                        end
                     end
                 end
             end
@@ -148,7 +150,7 @@ function _shuffle_particles!(
     end
 
     # true if cell is totally empty (i.e. we need to inject new particles in it)
-    inject[icell, jcell] = isemptycell(icell, jcell, index, min_xcell)
+    inject[parent] = isemptycell(i0_parent, index, max_xcell, min_xcell)
 
     return nothing
 end

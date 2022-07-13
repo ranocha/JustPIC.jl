@@ -89,16 +89,16 @@ end
 
 function twoxtwo_particles2D(nxcell, max_xcell, x, y, dx, dy, nx, ny, lx, ly)
     rad2 = 2.0
-    ncells = (nx + 1) * (ny + 1)
+    ncells = nx * ny
     np = max_xcell * ncells
-    px, py, pT = ntuple(_ -> fill(NaN, max_xcell, (nx + 1), (ny + 1)), Val(3))
+    px, py, pT = ntuple(_ -> fill(NaN, max_xcell, nx, ny), Val(3))
 
     min_xcell = ceil(Int, nxcell / 2)
 
     # index = zeros(UInt32, np)
-    inject = falses((nx + 1), (ny + 1))
-    index = falses(max_xcell, (nx + 1), (ny + 1))
-    @inbounds for j in 1:(ny + 1), i in 1:(nx + 1)
+    inject = falses( nx, ny)
+    index = falses(max_xcell, nx, ny)
+    @inbounds for j in 1:ny, i in 1:nx
         # lowermost-left corner of the cell
         x0, y0 = x[i], y[j]
         # index of first particle in cell
@@ -140,11 +140,11 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
 
     # model domain
     lx = ly = 10
-    dx, dy = lx / (nx - 1), ly / (ny - 1)
+    dx, dy = lx / nx, ly / ny
     dxi = (dx, dy)
     nxi = (nx, ny)
-    x = LinRange(0, lx, nx)
-    y = LinRange(0, ly, ny)
+    x = LinRange(dx/2, lx-dx/2, nx)
+    y = LinRange(dy/2, ly-dy/2, ny)
     grid = (x, y)
 
     T = PS_PACKAGE === :CUDA ? CUDA.zeros(Float64, nx, ny) : zeros(nx, ny)
@@ -198,14 +198,14 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
     return injected_cells, it_time
 end
 
-nx = ny = 42
+nx = ny = 40
 nxcell = 4
 nt = 1000
 α = 2 / 3
 
 Vx, Vy = load_benchmark_data("data/data41_benchmark.mat")
 
-injected_23, t_23 = main(Vx, Vy; nx=nx, ny=ny, α=2 / 3, nt=100, viz = true);
+@time injected_23, t_23 = main(Vx, Vy; nx=nx, ny=ny, α=2 / 3, nt=1000, viz = false);
 
 injected_23, t_23 = main(Vx_d, Vy_d; nx=nx, ny=ny, α=2 / 3, nt=1000, viz = false)
 
