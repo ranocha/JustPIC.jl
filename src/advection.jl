@@ -44,7 +44,7 @@ end
 
 function advection_RK2!(particles::Particles, V, grid::NTuple{3,T}, dt, α) where {T}
     (; coords, index, np) = particles
-    dxi = ntuple(Val(2)) do i
+    dxi = ntuple(Val(3)) do i
         lo, hi = extrema(grid[i])
         hi - lo
     end
@@ -58,7 +58,7 @@ end
 
 function advection_RK2!(particles::Particles, V, grid::NTuple{2,T}, dt, α) where {T}
     (; coords, index, np) = particles
-    dxi = ntuple(Val(3)) do i
+    dxi = ntuple(Val(2)) do i
         lo, hi = extrema(grid[i])
         hi - lo
     end
@@ -66,13 +66,13 @@ function advection_RK2!(particles::Particles, V, grid::NTuple{2,T}, dt, α) wher
     xci = minimum.(grid)
 
     @parallel (1:np) advection_RK2!(px, py, V, index, grid, xci, dxi, dt, α)
-
+    
     return nothing
 end
 
 @parallel_indices (i) function advection_RK2!(
-    px, py, pz, V::NTuple{3,T1}, index::AbstractVector{T2}, grid, xci, dxi, dt, α
-) where {T1,T2}
+    px, py, pz, V::NTuple{3,T1}, index::AbstractArray, grid, xci, dxi, dt, α
+) where T1
     if i ≤ length(px) && index[i] === true
         pᵢ = (px[i], py[i], pz[i])
         px[i], py[i], pz[i] = _advection_RK2(pᵢ, V, grid, xci, dxi, dt; α=α)
@@ -82,10 +82,11 @@ end
 end
 
 @parallel_indices (i) function advection_RK2!(
-    px, py, V::NTuple{2,T1}, index::AbstractVector{T2}, grid, xci, dxi, dt, α
-) where {T1,T2}
+    px, py, V::NTuple{2,T1}, index::AbstractArray, grid, xci, dxi, dt, α
+) where T1
     if i ≤ length(px) && index[i] === true
         pᵢ = (px[i], py[i])
+        any(isnan, pᵢ) && continue
         px[i], py[i] = _advection_RK2(pᵢ, V, grid, xci, dxi, dt; α=α)
     end
 

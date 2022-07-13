@@ -1,10 +1,8 @@
 # TODO preallocate buffers for gathering kernel
-struct Particles{N,M,I,T1,T2,T3,T4}
+struct Particles{N,M,I,T1,T2,T3}
     coords::NTuple{N,T1}
     index::T2
     inject::T3
-    upper_buffer::T4
-    lower_buffer::T4
     nxcell::I
     max_xcell::I
     min_xcell::I
@@ -24,22 +22,20 @@ struct Particles{N,M,I,T1,T2,T3,T4}
         # types
         T2 = typeof(index)
         T3 = typeof(inject)
-        T = eltype(coords[1])
-        # allocate buffers for gathering kernel
-        upper_buffer = if PS_PACKAGE === :CUDA
-            CUDA.zeros(T, nxi...)
-        else
-            [Array{T,N}(undef, nxi...) for _ in 1:Threads.nthreads()]
-        end
-        lower_buffer = similar.(upper_buffer)
-        T4 = typeof(lower_buffer)
+        # T = eltype(coords[1])
+        # # allocate buffers for gathering kernel
+        # upper_buffer = if PS_PACKAGE === :CUDA
+        #     CUDA.zeros(T, nxi...)
+        # else
+        #     [Array{T,N}(undef, nxi...) for _ in 1:Threads.nthreads()]
+        # end
+        # lower_buffer = similar.(upper_buffer)
+        # T4 = typeof(lower_buffer)
 
-        return new{N,max_xcell,I,T1,T2,T3,T4}(
+        return new{N,max_xcell,I,T1,T2,T3}(
             coords,
             index,
             inject,
-            upper_buffer,
-            lower_buffer,
             nxcell,
             max_xcell,
             min_xcell,

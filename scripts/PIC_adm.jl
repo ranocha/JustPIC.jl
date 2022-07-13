@@ -2,11 +2,7 @@ ENV["PS_PACKAGE"] = :Threads
 
 using JustPIC
 using MAT, CUDA
-# using MuladdMacro, MAT, CUDA
-# using ParallelStencil
 # using GLMakie
-# using StencilInterpolations
-# import StencilInterpolations: _grid2particle, parent_cell, isinside
 
 push!(LOAD_PATH, "..")
 PS_PACKAGE = Symbol(ENV["PS_PACKAGE"])
@@ -91,6 +87,53 @@ function twoxtwo_particles(nxcell, max_xcell, x, y, dx, dy, nx, ny, lx, ly)
     end
 end
 
+function twoxtwo_particles2D(nxcell, max_xcell, x, y, dx, dy, nx, ny, lx, ly)
+    rad2 = 2.0
+    ncells = (nx + 1) * (ny + 1)
+    np = max_xcell * ncells
+    px, py, pT = ntuple(_ -> fill(NaN, max_xcell, (nx + 1), (ny + 1)), Val(3))
+
+    min_xcell = ceil(Int, nxcell / 2)
+
+    # index = zeros(UInt32, np)
+    inject = falses((nx + 1), (ny + 1))
+    index = falses(max_xcell, (nx + 1), (ny + 1))
+    @inbounds for j in 1:(ny + 1), i in 1:(nx + 1)
+        # lowermost-left corner of the cell
+        x0, y0 = x[i], y[j]
+        # index of first particle in cell
+        idx = 1
+        # add 4 new particles in a 2x2 manner + some small random perturbation
+        px[idx,     i, j] = x0 + dx * (1 / 3) * (1.0 + (rand() - 0.5))
+        px[idx + 1, i, j] = x0 + dx * (2 / 3) * (1.0 + (rand() - 0.5))
+        px[idx + 2, i, j] = x0 + dx * (1 / 3) * (1.0 + (rand() - 0.5))
+        px[idx + 3, i, j] = x0 + dx * (2 / 3) * (1.0 + (rand() - 0.5))
+        py[idx,     i, j] = y0 + dy * (1 / 3) * (1.0 + (rand() - 0.5))
+        py[idx + 1, i, j] = y0 + dy * (1 / 3) * (1.0 + (rand() - 0.5))
+        py[idx + 2, i, j] = y0 + dy * (2 / 3) * (1.0 + (rand() - 0.5))
+        py[idx + 3, i, j] = y0 + dy * (2 / 3) * (1.0 + (rand() - 0.5))
+        # fill index array
+        for l in 1:nxcell
+            # index[l] = l
+            index[l,i,j] = true
+            pT[l,i,j] = exp(
+                -((x0 + px[l,i,j] * dx - lx / 2)^2 + (y0 + py[l,i,j] * dy - ly / 2)^2) / rad2
+            )
+        end
+    end
+
+    if PS_PACKAGE === :CUDA
+        pxi = CuArray.((px, py))
+        return Particles(
+            pxi, CuArray(index), CuArray(inject), nxcell, max_xcell, min_xcell, np, (nx, ny)
+        ),
+        CuArray(pT)
+
+    else
+        return Particles((px, py), index, inject, nxcell, max_xcell, min_xcell, np, (nx, ny)), pT
+    end
+end
+
 function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
     V = (Vx, Vy)
     vx0, vy0 = maximum(abs.(Vx)), maximum(abs.(Vy))
@@ -110,7 +153,7 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
     # random particles
     max_xcell = nxcell * 2
     # particles = random_particles(nxcell, max_xcell, x, y, dx, dy, nx, ny)
-    particles, pT = twoxtwo_particles(nxcell, max_xcell, x, y, dx, dy, nx, ny, lx, ly)
+    particles, pT = twoxtwo_particles2D(nxcell, max_xcell, x, y, dx, dy, nx, ny, lx, ly)
 
     # field to interpolate
     dt = min(dx, dy) / max(abs(vx0), abs(vy0)) * 0.25
@@ -128,11 +171,12 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
         end
 
         t1 = @elapsed begin
-            gathering!(T, pT, grid, particles.coords, particles.upper_buffer, particles.lower_buffer)
-
+            # gathering!(T, pT, grid, particles.coords, particles.upper_buffer, particles.lower_buffer)
+            gathering_xcell!(T, pT, grid, particles.coords)
+            
             # advect particles in space
-            advection_RK2!(particles, V, grid, dxi, dt, α)
-
+            advection_RK2!(particles, V, grid, dt, α)
+            
             # advect particles in memory
             shuffle_particles!(particles, grid, dxi, nxi, args)
 
@@ -140,7 +184,7 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
 
             check_injection(particles.inject) && (
                 inject_particles!(particles, grid, nxi, dxi);
-                grid2particle!(pT, grid, T, particles.coords)
+                grid2particle_xcell!(pT, grid, T, particles.coords, particles.max_xcell)
             )
         end
 
@@ -160,9 +204,11 @@ nt = 1000
 α = 2 / 3
 
 Vx, Vy = load_benchmark_data("data/data41_benchmark.mat")
-# Vx, Vy = CuArray(Vx), CuArray(Vy)
 
-injected_23, t_23 = main(Vx, Vy; nx=nx, ny=ny, α=2 / 3, nt=1000, viz = false)
+injected_23, t_23 = main(Vx, Vy; nx=nx, ny=ny, α=2 / 3, nt=100, viz = true);
+
+injected_23, t_23 = main(Vx_d, Vy_d; nx=nx, ny=ny, α=2 / 3, nt=1000, viz = false)
+
 injected_rk2, t_rk2 = main(Vx, Vy; nx=nx, ny=ny, α=0.5, nt=1000)
 injected_heun, t_heun = main(Vx, Vy; nx=nx, ny=ny, α=1.0, nt=1000)
 
@@ -187,3 +233,6 @@ df = DataFrame(
 )
 
 CSV.write("CPU_baseline.csv", df)
+
+@btime grid2particle_xcell!($pT, $grid, $T, $particles.coords, $particles.max_xcell)
+@btime grid2particle!($pT, $grid, $T, $particles.coords)
