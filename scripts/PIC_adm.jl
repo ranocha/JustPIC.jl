@@ -91,8 +91,9 @@ function twoxtwo_particles2D(nxcell, max_xcell, x, y, dx, dy, nx, ny, lx, ly)
     rad2 = 2.0
     ncells = nx * ny
     np = max_xcell * ncells
+    dx *= 0.5
+    dy *= 0.5
     px, py, pT = ntuple(_ -> fill(NaN, max_xcell, nx, ny), Val(3))
-
     min_xcell = ceil(Int, nxcell / 2)
 
     # index = zeros(UInt32, np)
@@ -143,6 +144,8 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
     dx, dy = lx / nx, ly / ny
     dxi = (dx, dy)
     nxi = (nx, ny)
+    Ωx = LinRange(0, lx, nx)
+    Ωy = LinRange(0, ly, ny)
     x = LinRange(dx/2, lx-dx/2, nx)
     y = LinRange(dy/2, ly-dy/2, ny)
     grid = (x, y)
@@ -153,7 +156,7 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
     # random particles
     max_xcell = nxcell * 2
     # particles = random_particles(nxcell, max_xcell, x, y, dx, dy, nx, ny)
-    particles, pT = twoxtwo_particles2D(nxcell, max_xcell, x, y, dx, dy, nx, ny, lx, ly)
+    particles, pT = twoxtwo_particles2D(nxcell, max_xcell, Ωx, Ωy, dx, dy, nx, ny, lx, ly)
 
     # field to interpolate
     dt = min(dx, dy) / max(abs(vx0), abs(vy0)) * 0.25
@@ -205,7 +208,7 @@ nt = 1000
 
 Vx, Vy = load_benchmark_data("data/data41_benchmark.mat")
 
-@time injected_23, t_23 = main(Vx, Vy; nx=nx, ny=ny, α=2 / 3, nt=1000, viz = false);
+@time injected_23, t_23 = main(Vx, Vy; nx=nx, ny=ny, α=2 / 3, nt=1000, viz = true);
 
 injected_23, t_23 = main(Vx_d, Vy_d; nx=nx, ny=ny, α=2 / 3, nt=1000, viz = false)
 
