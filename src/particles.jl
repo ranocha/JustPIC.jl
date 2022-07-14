@@ -33,13 +33,7 @@ struct Particles{N,M,I,T1,T2,T3}
         # T4 = typeof(lower_buffer)
 
         return new{N,max_xcell,I,T1,T2,T3}(
-            coords,
-            index,
-            inject,
-            nxcell,
-            max_xcell,
-            min_xcell,
-            np,
+            coords, index, inject, nxcell, max_xcell, min_xcell, np
         )
     end
 end

@@ -16,11 +16,11 @@ const PS_PACKAGE = Symbol(ENV["PS_PACKAGE"])
 #     @init_parallel_stencil(package = CUDA, ndims = 2)
 #     CUDA.allowscalar(true)
 # elseif PS_PACKAGE == :Threads
-    @init_parallel_stencil(package = Threads, ndims = 2)
+@init_parallel_stencil(package = Threads, ndims = 2)
 # end))
 
 include("particles.jl")
-export Particles, init_particles, particle2grid! 
+export Particles, init_particles, particle2grid!
 
 include("utils.jl")
 

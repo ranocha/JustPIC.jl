@@ -49,12 +49,12 @@ function neighbouring_cells(i, j, nx, ny)
     nxi = (nx, ny)
     idx = (
         (clamp(i - 1, 1, nx), clamp(j - 1, 1, ny)),
-        (clamp(i    , 1, nx), clamp(j - 1, 1, ny)),
+        (clamp(i, 1, nx), clamp(j - 1, 1, ny)),
         (clamp(i + 1, 1, nx), clamp(j - 1, 1, ny)),
-        (clamp(i - 1, 1, nx), clamp(j    , 1, ny)),
-        (clamp(i + 1, 1, nx), clamp(j    , 1, ny)),
+        (clamp(i - 1, 1, nx), clamp(j, 1, ny)),
+        (clamp(i + 1, 1, nx), clamp(j, 1, ny)),
         (clamp(i - 1, 1, nx), clamp(j + 1, 1, ny)),
-        (clamp(i    , 1, nx), clamp(j + 1, 1, ny)),
+        (clamp(i, 1, nx), clamp(j + 1, 1, ny)),
         (clamp(i + 1, 1, nx), clamp(j + 1, 1, ny)),
     )
     return idx
@@ -132,7 +132,7 @@ end
     return true
 end
 
-function isemptycell(
+@inline function isemptycell(
     idx::Integer, index::AbstractArray{T,N}, max_xcell::Integer, min_xcell::Integer
 ) where {T,N}
     # closures
@@ -145,10 +145,9 @@ function isemptycell(
     return val > min_xcell ? false : true
 end
 
-function isemptycell(
+@inline function isemptycell(
     icell::Integer, jcell::Integer, index::AbstractArray{T,N}, min_xcell::Integer
 ) where {T,N}
-
     val = 0
     for i in axes(index, 1)
         @inbounds index[i, icell, jcell] && (val += 1)
@@ -161,8 +160,20 @@ end
 ) where {N,T<:AbstractArray}
     for n in 1:N
         if i ≤ length(dest[n])
-            dest[n][i] = src[n][i]
+            @inbounds dest[n][i] = src[n][i]
         end
     end
     return nothing
+end
+
+@inline function compute_dx(grid::NTuple{N,T}) where {N,T}
+    return ntuple(i -> grid[i][2] - grid[i][1], Val(N))
+end
+
+@inline function clamp_grid_lims(grid_lims::NTuple{N,T1}, dxi::NTuple{N,T2}) where {N,T1,T2}
+    clamped_limits = ntuple(Val(N)) do i
+        min_L, max_L = grid_lims[i]
+        (min_L + dxi[i] * 0.01, max_L - dxi[i] * 0.01)
+    end
+    return clamped_limits
 end

@@ -79,14 +79,16 @@ function _shuffle_particles!(
     jcell,
     args::NTuple{N,T},
 ) where {N,T}
-
     nx, ny = nxi
-    
+
     # closures --------------------------------------
-    child_index(i,j) = (clamp(icell + i, 1, nx), clamp(icell + j, 1, ny))
-    function find_free_memory(icell, jcell)
-        for i in axes(index,1)
-            index[i, icell, jcell] == 0 && return i
+    @inline child_index(i, j) = (clamp(icell + i, 1, nx), clamp(icell + j, 1, ny))
+    @inline function cache_args(args::NTuple{N,T}, ip) where {T,N}
+        return ntuple(i -> args[i][ip, icell, jcell], Val(N))
+    end
+    @inline function find_free_memory(icell, jcell)
+        for i in axes(index, 1)
+            @inbounds index[i, icell, jcell] == 0 && return i
         end
         return 0
     end
@@ -94,10 +96,11 @@ function _shuffle_particles!(
 
     # coordinate of the lower-most-left coordinate of the parent cell 
     corner_xi = corner_coordinate(grid, icell, jcell)
-
-    # # iterate over neighbouring (child) cells
+    # cell where we check for incoming particles
+    parent = icell, jcell
+    # iterate over neighbouring (child) cells
     for i in -1:1, j in -1:1
-        child = child_index(i,j) 
+        child = child_index(i, j)
 
         # ignore parent cell
         if parent != child
@@ -107,7 +110,7 @@ function _shuffle_particles!(
                 if index[ip, icell, jcell]
                     p_child = (px[ip, icell, jcell], py[ip, icell, jcell])
 
-                    # check that the particle is inside the grid
+                    # check whether the particle is inside the cell and move it
                     if isincell(p_child, corner_xi, dxi)
                         # hold particle variables to move
                         current_px = px[ip, icell, jcell]
@@ -116,7 +119,7 @@ function _shuffle_particles!(
                         (isnan(current_px) || isnan(current_py)) && continue
 
                         # cache out fields to move in the memory
-                        current_args = ntuple(i -> args[i][ip, icell, jcell], Val(N))
+                        current_args = cache_args(args, ip)
 
                         # remove particle from old cell
                         index[ip, icell, jcell] = false
@@ -130,17 +133,17 @@ function _shuffle_particles!(
                         # move particle to new cell
                         free_idx = find_free_memory(icell, jcell)
                         # check whether current index is free
-                        free_idx == 0 && continue 
+                        free_idx == 0 && continue
 
                         # move it to the first free memory location
                         index[free_idx, icell, jcell] = true
                         px[free_idx, icell, jcell] = current_px
                         py[free_idx, icell, jcell] = current_py
+
                         # move fields in the memory
                         for t in eachindex(args)
                             args[t][free_idx, icell, jcell] = current_args[t]
                         end
-
                     end
                 end
             end
