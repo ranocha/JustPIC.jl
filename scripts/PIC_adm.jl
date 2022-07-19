@@ -1,17 +1,42 @@
 ENV["PS_PACKAGE"] = :Threads
-
-using JustPIC
+# using JustPIC
 using MAT
 # using ProfileCanvas
 # using CUDA
 # using GLMakie
 
+using MuladdMacro
+using ParallelStencil
+using ParallelStencil.FiniteDifferences2D
+
+@init_parallel_stencil(Threads, Float64, 2)
+
+include("/home/albert/Desktop/StencilInterpolations.jl/src/StencilInterpolations.jl")
+using .StencilInterpolations
+
+import .StencilInterpolations: _grid2particle, parent_cell, isinside, field_corners, gathering_xcell!
+
 push!(LOAD_PATH, "..")
 PS_PACKAGE = Symbol(ENV["PS_PACKAGE"])
 
-include("../src/data.jl")
+include("/home/albert/Desktop/JustPIC.jl/src/particles.jl")
+include("/home/albert/Desktop/JustPIC.jl/src/utils.jl")
+include("/home/albert/Desktop/JustPIC.jl/src/advection.jl")
+include("/home/albert/Desktop/JustPIC.jl/src/injection.jl")
+include("/home/albert/Desktop/JustPIC.jl/src/shuffle.jl")
+
+include("/home/albert/Desktop/JustPIC.jl/src/data.jl")
 
 ## -------------------------------------------------------------
+function plot_particles(particles)
+    ii=findall(particles.index.=== true)
+    scatter(particles.coords[1][ii],particles.coords[2][ii])
+end
+
+function scatter_T(particles, pT)
+    ii=findall(particles.index.=== true)
+    scatter(particles.coords[1][ii],particles.coords[2][ii], color=pT[ii])
+end
 
 function random_particles(nxcell, max_xcell, x, y, dx, dy, nx, ny)
     ncells = (nx - 1) * (ny - 1)
@@ -110,14 +135,14 @@ function twoxtwo_particles2D(nxcell, max_xcell, x, y, dx, dy, nx, ny, lx, ly)
         # index of first particle in cell
         idx = 1
         # add 4 new particles in a 2x2 manner + some small random perturbation
-        px[idx, i, j] = x0 + dx * (1 / 3) * (1.0 + (rand() - 0.5))
-        px[idx + 1, i, j] = x0 + dx * (2 / 3) * (1.0 + (rand() - 0.5))
-        px[idx + 2, i, j] = x0 + dx * (1 / 3) * (1.0 + (rand() - 0.5))
-        px[idx + 3, i, j] = x0 + dx * (2 / 3) * (1.0 + (rand() - 0.5))
-        py[idx, i, j] = y0 + dy * (1 / 3) * (1.0 + (rand() - 0.5))
-        py[idx + 1, i, j] = y0 + dy * (1 / 3) * (1.0 + (rand() - 0.5))
-        py[idx + 2, i, j] = y0 + dy * (2 / 3) * (1.0 + (rand() - 0.5))
-        py[idx + 3, i, j] = y0 + dy * (2 / 3) * (1.0 + (rand() - 0.5))
+        px[idx, i, j]     = x0 - 0.25*dx #* (1 / 3) * (1.0 + (rand() - 0.5))
+        px[idx + 1, i, j] = x0 + 0.25*dx #* (2 / 3) * (1.0 + (rand() - 0.5))
+        px[idx + 2, i, j] = x0 - 0.25*dx #* (1 / 3) * (1.0 + (rand() - 0.5))
+        px[idx + 3, i, j] = x0 + 0.25*dx #* (2 / 3) * (1.0 + (rand() - 0.5))
+        py[idx, i, j]     = y0 - 0.25*dy #* (1 / 3) * (1.0 + (rand() - 0.5))
+        py[idx + 1, i, j] = y0 - 0.25*dy #* (1 / 3) * (1.0 + (rand() - 0.5))
+        py[idx + 2, i, j] = y0 + 0.25*dy #* (2 / 3) * (1.0 + (rand() - 0.5))
+        py[idx + 3, i, j] = y0 + 0.25*dy #* (2 / 3) * (1.0 + (rand() - 0.5))
         # fill index array
         for l in 1:nxcell
             # index[l] = l
@@ -159,13 +184,13 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
     y = LinRange(dy / 2, ly - dy / 2, ny)
     grid = (x, y)
 
-    T = PS_PACKAGE === :CUDA ? CUDA.zeros(Float64, nx, ny) : zeros(nx, ny)
+    T = PS_PACKAGE === :CUDA ? CUDA.zeros(Float64, nx+2, ny+2) : zeros(nx+2, ny+2)
 
     # random particles
     max_xcell = nxcell * 2
     # particles = random_particles(nxcell, max_xcell, x, y, dx, dy, nx, ny)
-    particles, pT = twoxtwo_particles2D(nxcell, max_xcell, Ωx, Ωy, dx, dy, nx, ny, lx, ly)
-
+    particles, pT = twoxtwo_particles2D(nxcell, max_xcell, x, y, dx, dy, nx, ny, lx, ly)
+ 
     # field to interpolate
     dt = min(dx, dy) / max(abs(vx0), abs(vy0)) * 0.25
     it = 1
@@ -176,14 +201,16 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
 
     args = (pT,)
 
-    while it ≤ 50
-        # if it == nt ÷ 2
-        #     dt = -dt
-        # end
+    while it ≤ nt
+        if it == nt ÷ 2
+            dt = -dt
+        end
 
         t1 = @elapsed begin
             # gathering!(T, pT, grid, particles.coords, particles.upper_buffer, particles.lower_buffer)
-            # gathering_xcell!(T, pT, grid, particles.coords)
+            gathering_xcell!(T, args[1], grid, particles.coords)
+
+            # @show any(isnan, T)
 
             # advect particles in space
             advection_RK2!(particles, V, grid, dt, α)
@@ -191,18 +218,23 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
             # advect particles in memory
             shuffle_particles!(particles, grid, dxi, nxi, args)
 
-            @show injected_cells[it] = sum(particles.inject)
+            do_we_inject = check_injection(particles)
 
-            # check_injection(particles.inject) && (
-            #     inject_particles!(particles, grid, nxi, dxi);
-            #     # grid2particle_xcell!(pT, grid, T, particles.coords, particles.max_xcell)
-            # )
+            # @show injected_cells[it] = sum(particles.inject)
+            # kk=findall(particles.inject)
+
+            do_we_inject && (
+                inject_particles!(particles, grid, dxi);
+                grid2particle_xcell!(args[1], grid, T, particles.coords, particles.max_xcell)
+            )
+
         end
 
         it_time[it] = t1
         it += 1
 
-        # viz && (it % nsave == 0) && plot(x, y, T, particles, pT, it)
+        # viz && (it % nsave == 0) &&  
+        plot(x, y, T, particles, pT, it)
 
     end
 
@@ -216,7 +248,8 @@ nt = 1000
 
 Vx, Vy = load_benchmark_data("data/data41_benchmark.mat")
 
-# injected_23, t_23 = main(Vx, Vy; nx=nx, ny=ny, α=2 / 3, nt=1000, viz = true);
+injected_23, t_23 = main(Vx, Vy; nx=nx, ny=ny, α=2 / 3, nt=50, viz = true);
+@btime main($Vx, $Vy; nx=$nx, ny=$ny, α=$(2 / 3), nt=$1000, viz = $false);
 
 # injected_23, t_23 = main(Vx_d, Vy_d; nx=nx, ny=ny, α=2 / 3, nt=1000, viz = false)
 

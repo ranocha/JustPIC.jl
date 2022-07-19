@@ -2,6 +2,7 @@ ENV["PS_PACKAGE"] = :Threads
 
 using JustPIC, CUDA, MAT
 CUDA.allowscalar(false)
+CUDA.allowscalar(true)
 
 # TODO
 # 1. Optimize storage. Could utilize Float32 for marker coordinates
@@ -326,11 +327,11 @@ function main()
         pX, pY, pC, pT, pA, rad2, lx, ly, dx, dy, np
     )
     CUDA.@sync @cuda threads = nthreads blocks = nblocks p2g!(C, T, pC, pT, pX, pY, pA)
-    save_static_data!("out/griddata.mat", lx, ly, dx, dy, nx, ny, np, nt, dt)
+    # save_static_data!("out/griddata.mat", lx, ly, dx, dy, nx, ny, np, nt, dt)
     CUDA.@sync @cuda threads = nthreads blocks = nblocks convert_viz!(
         pX_viz, pY_viz, pX, pY, pA, dx, dy
     )
-    save_timestep!("out/step_0.mat", C, T, pX_viz, pY_viz, pC, pT, pA, 0.0)
+    # save_timestep!("out/step_0.mat", C, T, pX_viz, pY_viz, pC, pT, pA, 0.0)
     # action
     tt = 0.0
     it = 1

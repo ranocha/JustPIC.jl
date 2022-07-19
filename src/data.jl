@@ -31,6 +31,7 @@ function plot(x, y, T, particles, pT, it)
     pidx = Array(particles.index)
     ii = findall(x -> x == true, pidx)
 
+    T = T[2:end-1, 2:end-1]
     cmap = :jet
 
     f = Figure(; resolution=(900, 450))
@@ -42,7 +43,7 @@ function plot(x, y, T, particles, pT, it)
     Colorbar(f[1, 3], hm)
 
     hideydecorations!(ax2)
-
+    linkaxes!(ax1,ax2)
     for ax in (ax1, ax2)
         xlims!(ax, 0, 10)
         ylims!(ax, 0, 10)
