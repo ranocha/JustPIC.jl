@@ -84,7 +84,9 @@ function _shuffle_particles!(
 
     # closures --------------------------------------
     @inline child_index(i, j) = (clamp(icell + i, 1, nx), clamp(jcell + j, 1, ny))
-    @inline function cache_args(args::NTuple{N1,T}, ip, child::Vararg{Int64, N2}) where {T,N1,N2}
+    @inline function cache_args(
+        args::NTuple{N1,T}, ip, child::Vararg{Int64,N2}
+    ) where {T,N1,N2}
         return ntuple(i -> args[i][ip, child...], Val(N1))
     end
     @inline function find_free_memory(icell, jcell)
@@ -144,9 +146,6 @@ function _shuffle_particles!(
                         for t in eachindex(args)
                             args[t][free_idx, icell, jcell] = current_args[t]
                         end
-
-                        
-
                     end
                 end
             end
@@ -183,11 +182,9 @@ function _shuffle_particles!(
     return nothing
 end
 
-
 @inline function find_free_memory(icell, jcell)
     for i in axes(index, 1)
         @inbounds index[i, icell, jcell] == 0 && return i
     end
     return 0
 end
-

@@ -173,10 +173,14 @@ end
 @inline function clamp_grid_lims(grid_lims::NTuple{N,T1}, dxi::NTuple{N,T2}) where {N,T1,T2}
     clamped_limits = ntuple(Val(N)) do i
         min_L, max_L = grid_lims[i]
-        (
-            min_L - dxi[i] * 0.5 + dxi[i] * 0.01, 
-            max_L - dxi[i] * 0.01 + dxi[i] * 0.5
-        )
+        (min_L - dxi[i] * 0.5 + dxi[i] * 0.01, max_L - dxi[i] * 0.01 + dxi[i] * 0.5)
     end
     return clamped_limits
+end
+
+@inline function augment_lazy_grid(grid::NTuple{N,T1}, dxi::NTuple{N,T2}) where {N,T1,T2}
+    xci_augmented = ntuple(Val(N)) do i
+        (grid[i][1] - dxi[i]):dxi[i]:(grid[i][end] + dxi[i])
+    end
+    return xci_augmented
 end
