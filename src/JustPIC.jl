@@ -4,12 +4,17 @@ using MuladdMacro
 # using CUDA
 using ParallelStencil
 
-include(
-    "C:\\Users\\albert\\Desktop\\StencilInterpolations.jl\\src\\StencilInterpolations.jl"
-)
-using .StencilInterpolations
+# include(
+#     "C:\\Users\\albert\\Desktop\\StencilInterpolations.jl\\src\\StencilInterpolations.jl"
+# )
+# using .StencilInterpolations
 
-import .StencilInterpolations: _grid2particle, parent_cell, isinside
+# import .StencilInterpolations: _grid2particle, parent_cell, isinside
+# export grid2particle!, gathering!, grid2particle_xcell!, gathering_xcell!
+
+using StencilInterpolations
+
+import StencilInterpolations: _grid2particle
 export grid2particle!, gathering!, grid2particle_xcell!, gathering_xcell!
 
 const PS_PACKAGE = Symbol(ENV["PS_PACKAGE"])
