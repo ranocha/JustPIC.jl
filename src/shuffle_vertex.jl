@@ -1,8 +1,8 @@
 function shuffle_particles_vertex!(
-    particles::Particles, grid::NTuple{N,T} args
+    particles::Particles, grid::NTuple{N,T}, args
 ) where {N,T}
     # unpack
-    (; coords, index, inject, max_xcell, min_xcell) = particles
+    (; coords, index) = particles
     nxi = length.(grid)
     nx, ny = nxi
     px, py = coords
@@ -21,9 +21,6 @@ function shuffle_particles_vertex!(
             dxi,
             nxi,
             index,
-            inject,
-            max_xcell,
-            min_xcell,
             offset,
             offset_x,
             offset_y,
@@ -41,9 +38,6 @@ end
     dxi::NTuple{2,T},
     nxi,
     index,
-    inject,
-    max_xcell,
-    min_xcell,
     offset,
     offset_x,
     offset_y,
@@ -55,7 +49,7 @@ end
 
     if (i ≤ nx-1) && (j ≤ ny-1)
         _shuffle_particles_vertex!(
-            px, py, grid, dxi, nxi, index, i, j, args
+            px, py, grid, dxi, nxi, index, i, j, args,
         )
     end
     return nothing
