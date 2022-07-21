@@ -149,10 +149,3 @@ function _shuffle_particles_vertex!(
 
     return nothing
 end
-
-@inline function find_free_memory(icell, jcell)
-    for i in axes(index, 1)
-        @inbounds index[i, icell, jcell] == 0 && return i
-    end
-    return 0
-end
