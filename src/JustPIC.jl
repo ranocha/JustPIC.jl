@@ -20,10 +20,10 @@ export grid2particle!, grid2particle_xvertex!, grid2particle_xcell!
 const PS_PACKAGE = Symbol(ENV["PS_PACKAGE"])
 
 !ParallelStencil.is_initialized() && eval(:(@static if PS_PACKAGE == :CUDA
-    @init_parallel_stencil(package = CUDA, Float64, ndims = 2)
+    @init_parallel_stencil(CUDA, Float64, 2)
     CUDA.allowscalar(true)
 elseif PS_PACKAGE == :Threads
-    @init_parallel_stencil(package = Threads, Float64, ndims = 2)
+    @init_parallel_stencil(Threads, Float64, 2)
 end))
 
 include("particles.jl")
