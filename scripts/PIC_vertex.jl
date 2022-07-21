@@ -11,10 +11,12 @@ using ParallelStencil.FiniteDifferences2D
 
 @init_parallel_stencil(Threads, Float64, 2)
 
-# include(
-#     "C:\\Users\\albert\\Desktop\\StencilInterpolations.jl\\src\\StencilInterpolations.jl"
-# )
-using StencilInterpolations
+# using StencilInterpolations
+include(
+    "/home/albert/Desktop/StencilInterpolations.jl/src/StencilInterpolations.jl"
+)
+
+using .StencilInterpolations
 
 # import .StencilInterpolations: _grid2particle
 
@@ -191,7 +193,7 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
 
     # model domain
     lx = ly = 10.0
-    dx, dy = lx / nx, ly / ny
+    dx, dy = lx / (nx-1), ly / (ny-1)
     dxi = (dx, dy)
     nxi = (nx, ny)
     x = LinRange(dx / 2, lx - dx / 2, nx)
@@ -205,7 +207,7 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
     grid_vx = (xv, yvx)
     grid_vy = (xvy, yv)
 
-    T = PS_PACKAGE === :CUDA ? CUDA.zeros(Float64, nx + 2, ny + 2) : zeros(nx + 2, ny + 2)
+    T = PS_PACKAGE === :CUDA ? CUDA.zeros(Float64, nx + 2, ny + 2) : zeros(nx, ny )
     T0 = similar(T)
 
     # random particles
@@ -222,6 +224,9 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
     it_time = Vector{Float64}(undef, nt)
 
     args = (pT,)
+    gridv = (0:dx:lx, 0:dy:ly)
+    gathering_xvertex!(T, pT, gridv, particles.coords)
+    grid2particle_xvertex!(pT, gridv, T,  particles.coords)
 
     while it ≤ nt
         if it == nt ÷ 2
@@ -269,7 +274,7 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
     return injected_cells, it_time
 end
 
-nx = ny = 40
+nx = ny = 42
 nxcell = 4
 nt = 1000
 α = 2 / 3
@@ -303,3 +308,107 @@ Vx, Vy = load_benchmark_data("data/data41_benchmark.mat")
 # )
 
 # CSV.write("CPU_baseline.csv", df)
+
+
+# @inline @generated function foo(a::NTuple{N,T}, b::NTuple{N,T}, dxi::NTuple{N,T}) where {N,T}
+#     quote
+#         val = one(T)
+#         Base.Cartesian.@nexprs $N i -> val *= one(T) - abs(a[i]-b[i])/dxi[i]
+#         return val
+#     end
+# end
+
+# @inbounds function _bar!(F, Fp, inode, jnode, xi, p, dxi)
+#     px, py = p # particle coordinates
+#     nx, ny = length.(xi)
+#     xvertex = (xi[1][inode], xi[2][jnode]) # cell lower-left coordinates
+#     ω, ωxF = 0.0, 0.0 # init weights
+#     max_xcell = size(px, 1) # max particles per cell
+
+#     # iterate over cells around i-th node
+#     for ioffset in -1:0 
+#         ivertex = ioffset + inode
+#         for joffset in -1:0
+#             jvertex = joffset +jnode
+#             # make sure we stay within the grid
+#             if (1 ≤ ivertex ≤ nx) && (1 ≤ jvertex ≤ ny)
+#                 # iterate over cell
+#                 for i in 1:max_xcell
+#                     p_i = (px[i, inode, jnode], py[i, inode, jnode])
+#                     # ignore lines below for unused allocations
+#                     isnan(p_i[1]) && continue
+#                     ω_i  = foo(xvertex, p_i, dxi)
+#                     ω   += ω_i
+#                     ωxF += ω_i*Fp[i, inode, jnode]
+#                 end
+#             end
+#         end
+#     end
+
+#     F[inode, jnode] = ωxF/ω
+# end
+
+# function bar!(
+#     F::Array{T,2}, Fp::AbstractArray{T}, xi, particle_coords
+# ) where {T}
+#     dxi = (
+#         xi[1][2]-xi[1][1],
+#         xi[2][2]-xi[2][1],
+#     )
+#     nx, ny = size(F)
+#     Threads.@threads for jnode in 1:ny-1
+#         for inode in 1:nx-1
+#             _bar!(F, Fp, inode, jnode, xi, particle_coords, dxi)
+#         end
+#     end
+
+# end
+
+# gridv = (0:dx:lx, 0:dy:ly)
+# bar!(T, pT, gridv, particles.coords)
+
+
+function foo!(Fp, xvi, F::Array{T,N}, particle_coords) where {T,N}
+    # cell dimensions
+    dxi = StencilInterpolations.grid_size(xvi)
+   
+    nx, ny = length.(xvi)
+    max_xcell = size(particle_coords[1], 1)
+    Threads.@threads for jnode in 1:ny-1
+        for inode in 1:nx-1
+            _foo!(
+                Fp, particle_coords, xvi, dxi, F, max_xcell, inode, jnode
+            )
+        end
+    end
+end
+
+
+function _foo!(Fp, p::NTuple, xvi::NTuple, dxi::NTuple, F::AbstractArray, max_xcell, inode, jnode)
+    idx = (inode, jnode)
+
+    @inline function particle2tuple(ip::Integer, idx::NTuple{N,T}) where {N, T}
+        return ntuple(i -> p[i][ip, idx...], Val(N))
+    end
+
+    for i in 1:max_xcell
+        # check that the particle is inside the grid
+        # isinside(p, xi)
+
+        p_i = particle2tuple(i, idx)
+
+        any(isnan, p_i) && continue
+
+        # F at the cell corners
+        Fi = StencilInterpolations.field_corners(F, idx)
+
+        # normalize particle coordinates
+        ti = StencilInterpolations.normalize_coordinates(p_i, xvi, dxi, idx)
+
+        # Interpolate field F onto particle
+        Fp[i, inode, jnode] = ndlinear(ti, Fi)
+
+    end
+end
+
+foo!(pT, gridv, T,  particles.coords)

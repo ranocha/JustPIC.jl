@@ -15,7 +15,8 @@ using ParallelStencil
 using StencilInterpolations
 
 import StencilInterpolations: _grid2particle
-export grid2particle!, gathering!, grid2particle_xcell!, gathering_xcell!
+export gathering!, gathering_xcell!, gathering_xvertex!
+export grid2particle!, grid2particle_xvertex!, grid2particle_xcell!
 
 const PS_PACKAGE = Symbol(ENV["PS_PACKAGE"])
 
