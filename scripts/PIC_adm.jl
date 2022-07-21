@@ -231,6 +231,16 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
         t1 = @elapsed begin
             copyto!(T0, T)
 
+            #
+            # we would run diffusion here
+            #
+
+            for argsi in args
+                # grid to particles
+                # int2part!(argsi, T, T0, particles, grid)
+                grid2particle_xcell!(argsi, grid, T, particles.coords)
+            end
+
             # advect particles in space
             # advection_RK2!(particles, V, grid, dt, α)
             advection_RK2_edges!(particles, V, grid_vx, grid_vy, dt, α) 
@@ -249,14 +259,6 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
             for argsi in args
                 # advected particles to grid
                 gathering_xcell!(T, argsi, grid, particles.coords)
-
-                #
-                # we would run diffusion here
-                #
-
-                # grid to particles
-                int2part!(argsi, T, T0, particles, grid)
-                # grid2particle_xcell!(argsi, grid, T, particles.coords)
             end
         end
 

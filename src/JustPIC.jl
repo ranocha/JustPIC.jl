@@ -40,6 +40,9 @@ export inject_particles!, check_injection
 include("shuffle.jl")
 export shuffle_particles!
 
+include("shuffle_vertex.jl")
+export shuffle_particles_vertex!
+
 include("staggered/centered.jl")
 export int2part!
 
