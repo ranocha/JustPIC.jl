@@ -118,7 +118,7 @@ function inject_particles!(particles::Particles, args, fields, grid)
 end
 
 @parallel_indices (icell, jcell) function inject_particles!(
-    inject, args, fields, coords, index, grid, 4dxi, nxcell
+    inject, args, fields, coords, index, grid, dxi, nxcell
 )
     if (icell ≤ size(inject, 1)) && (jcell ≤ size(inject, 2))
         _inject_particles!(
