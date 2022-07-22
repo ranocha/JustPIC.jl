@@ -163,8 +163,8 @@ function _inject_particles!(
                 particles_num += 1
 
                 # add at cellcenter + small random perturbation
-                px_new = xv4 + dx * 0.5 * (1.0 + myrand())
-                py_new = yv4 + dy * 0.5 * (1.0 + myrand())
+                px_new = xv + dx * 0.5 * (1.0 + myrand())
+                py_new = yv + dy * 0.5 * (1.0 + myrand())
                 p_new = (px_new, py_new)
                 coords[1][i, icell, jcell] = px_new
                 coords[2][i, icell, jcell] = py_new
