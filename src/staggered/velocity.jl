@@ -24,15 +24,15 @@ end
 ) where {T}
     # unpack
     idx_x, idx_y = idx
-    py = p_i[2]
-    dy = dxi[2]
+    px = p_i[1]
+    dx = dxi[1]
     x_vx, y_vx = xi_vx
-    yc = y_vx[idx_y]
-    yv = yc + 0.5*dy
+    xc = x_vx[idx_x]
+    xv = xc + 0.5*dx
     # compute offsets and corrections
-    offset_y = (py - yv) > 0 ? 0 : 1
+    offset_x = (px - xv) > 0 ? 0 : 1
     # cell indices
-    idx_y += offset_y
+    idx_x += offset_x
     # coordinates of lower-left corner of the cell
     xcell = x_vx[idx_x]
     ycell = y_vx[idx_y]
