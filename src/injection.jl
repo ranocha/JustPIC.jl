@@ -110,15 +110,15 @@ function inject_particles!(particles::Particles, args, fields, grid)
     # linear to cartesian object
     icell, jcell = size(inject)
     dxi = compute_dx(grid)
-    xci_augmented = augment_lazy_grid(grid, dxi)
+    # xci_augmented = augment_lazy_grid(grid, dxi)
 
     @parallel (1:icell, 1:jcell) inject_particles!(
-        inject, args, fields, coords, index, grid, xci_augmented, dxi, nxcell
+        inject, args, fields, coords, index, grid, dxi, nxcell
     )
 end
 
 @parallel_indices (icell, jcell) function inject_particles!(
-    inject, args, fields, coords, index, grid, xci_augmented, dxi, nxcell
+    inject, args, fields, coords, index, grid, 4dxi, nxcell
 )
     if (icell ≤ size(inject, 1)) && (jcell ≤ size(inject, 2))
         _inject_particles!(
@@ -128,7 +128,6 @@ end
             coords,
             index,
             grid,
-            xci_augmented,
             dxi,
             nxcell,
             icell,
@@ -139,14 +138,14 @@ end
 end
 
 function _inject_particles!(
-    inject, args, fields, coords, index, grid, xci_augmented, dxi, nxcell, icell, jcell
+    inject, args, fields, coords, index, grid, dxi, nxcell, icell, jcell
 )
     dx, dy = dxi
     max_xcell = size(index, 1)
 
     # closures -----------------------------------
     first_cell_index(i) = (i - 1) * max_xcell + 1
-    myrand() = rand(-1:2:1) * rand() * 0.75
+    myrand() = rand(-1:2:1) * rand() * 0.5
     # --------------------------------------------
 
     if inject[icell, jcell]
@@ -157,22 +156,22 @@ function _inject_particles!(
         end
 
         # coordinates of the lower-left center
-        xc, yc = corner_coordinate(grid, icell, jcell)
+        xv, yv = corner_coordinate(grid, icell, jcell)
 
         for i in 1:max_xcell
             if index[i, icell, jcell] === false
                 particles_num += 1
 
                 # add at cellcenter + small random perturbation
-                px_new = xc + dx * 0.25 * myrand()
-                py_new = yc + dy * 0.25 * myrand()
+                px_new = xv4 + dx * 0.5 * (1.0 + myrand())
+                py_new = yv4 + dy * 0.5 * (1.0 + myrand())
                 p_new = (px_new, py_new)
                 coords[1][i, icell, jcell] = px_new
                 coords[2][i, icell, jcell] = py_new
                 index[i, icell, jcell] = true
 
                 for (arg_i, field_i) in zip(args, fields)
-                    tmp = _grid2particle_xcell_centered(
+                    tmp = _grid2particle_xvertex(
                         p_new, grid, dxi, field_i, icell, jcell
                     )
                     arg_i[i, icell, jcell] = clamp(tmp, extrema(field_i)...)
