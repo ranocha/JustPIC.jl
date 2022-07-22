@@ -142,7 +142,7 @@ end
     for j in idx_range(idx)
         @inbounds index[j] && (val += 1)
     end
-    return val > min_xcell ? false : true
+    return val ≥ min_xcell ? false : true
 end
 
 @inline function isemptycell(
@@ -152,7 +152,7 @@ end
     for i in axes(index, 1)
         @inbounds index[i, icell, jcell] && (val += 1)
     end
-    return val > min_xcell ? false : true
+    return val ≥ min_xcell ? false : true
 end
 
 @parallel_indices (i) function copy_vectors!(
