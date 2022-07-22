@@ -172,12 +172,12 @@ function _inject_particles!(
                 index[i, icell, jcell] = true
 
                 for (arg_i, field_i) in zip(args, fields)
-                    # tmp = _grid2particle_xcell_centered(
-                    #     p_new, grid, xci_augmented, dxi, field_i, icell, jcell
-                    # )
-                    # arg_i[i, icell, jcell] = clamp(tmp, extrema(field_i)...)
+                    tmp = _grid2particle_xcell_centered(
+                        p_new, grid, dxi, field_i, icell, jcell
+                    )
+                    arg_i[i, icell, jcell] = clamp(tmp, extrema(field_i)...)
                     # arg_i[i, icell, jcell] = field_i[icell, jcell]
-                    arg_i[i, icell, jcell] = 0.0
+                    # arg_i[i, icell, jcell] = 0.0
                 end
             end
 
