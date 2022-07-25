@@ -98,7 +98,7 @@ function check_injection(particles::Particles)
 end
 
 @parallel_indices (icell, jcell) function check_injection!(inject, index, min_xcell)
-    if icell ≤ size(index, 2) && icell ≤ size(index, 3)
+    if icell ≤ size(index, 2) && jcell ≤ size(index, 3)
         inject[icell, jcell] = isemptycell(icell, jcell, index, min_xcell)
     end
     return nothing
