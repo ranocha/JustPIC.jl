@@ -122,16 +122,7 @@ end
 )
     if (icell ≤ size(inject, 1)) && (jcell ≤ size(inject, 2))
         _inject_particles!(
-            inject,
-            args,
-            fields,
-            coords,
-            index,
-            grid,
-            dxi,
-            nxcell,
-            icell,
-            jcell,
+            inject, args, fields, coords, index, grid, dxi, nxcell, icell, jcell
         )
     end
     return nothing
@@ -171,9 +162,7 @@ function _inject_particles!(
                 index[i, icell, jcell] = true
 
                 for (arg_i, field_i) in zip(args, fields)
-                    tmp = _grid2particle_xvertex(
-                        p_new, grid, dxi, field_i, icell, jcell
-                    )
+                    tmp = _grid2particle_xvertex(p_new, grid, dxi, field_i, icell, jcell)
                     arg_i[i, icell, jcell] = clamp(tmp, extrema(field_i)...)
                     # arg_i[i, icell, jcell] = field_i[icell, jcell]
                     # arg_i[i, icell, jcell] = 0.0

@@ -6,7 +6,7 @@ function shuffle_particles_vertex!(
     nxi = length.(grid)
     nx, ny = nxi
     px, py = coords
-    dxi = (grid[1][2]-grid[1][1], grid[2][2]-grid[2][1])
+    dxi = (grid[1][2] - grid[1][1], grid[2][2] - grid[2][1])
 
     offsets = ((1, 0, 0), (2, 0, 0), (1, 0, 1), (1, 1, 0))
     n_i = ceil(Int, nx * (1 / N))
@@ -15,16 +15,7 @@ function shuffle_particles_vertex!(
     for offset_i in offsets
         offset, offset_x, offset_y = offset_i
         @parallel (1:n_i, 1:n_j) shuffle_particles_vertex_ps!(
-            px,
-            py,
-            grid,
-            dxi,
-            nxi,
-            index,
-            offset,
-            offset_x,
-            offset_y,
-            args,
+            px, py, grid, dxi, nxi, index, offset, offset_x, offset_y, args
         )
     end
 
@@ -32,39 +23,20 @@ function shuffle_particles_vertex!(
 end
 
 @parallel_indices (icell, jcell) function shuffle_particles_vertex_ps!(
-    px,
-    py,
-    grid,
-    dxi::NTuple{2,T},
-    nxi,
-    index,
-    offset,
-    offset_x,
-    offset_y,
-    args,
+    px, py, grid, dxi::NTuple{2,T}, nxi, index, offset, offset_x, offset_y, args
 ) where {T}
     nx, ny = nxi
     i = offset + 2 * (icell - 1) + offset_x
     j = offset + 2 * (jcell - 1) + offset_y
 
-    if (i ≤ nx-1) && (j ≤ ny-1)
-        _shuffle_particles_vertex!(
-            px, py, grid, dxi, nxi, index, i, j, args,
-        )
+    if (i ≤ nx - 1) && (j ≤ ny - 1)
+        _shuffle_particles_vertex!(px, py, grid, dxi, nxi, index, i, j, args)
     end
     return nothing
 end
 
 function _shuffle_particles_vertex!(
-    px,
-    py,
-    grid,
-    dxi,
-    nxi,
-    index,
-    icell,
-    jcell,
-    args::NTuple{N,T},
+    px, py, grid, dxi, nxi, index, icell, jcell, args::NTuple{N,T}
 ) where {N,T}
     nx, ny = nxi
 
@@ -91,7 +63,7 @@ function _shuffle_particles_vertex!(
     for j in -1:1, i in -1:1
         ichild, jchild = child_index(i, j)
         # ignore parent cell
-        if parent != (ichild, jchild) && (1 ≤ ichild ≤ nx-1) && (1 ≤ jchild ≤ ny-1) 
+        if parent != (ichild, jchild) && (1 ≤ ichild ≤ nx - 1) && (1 ≤ jchild ≤ ny - 1)
 
             # iterate over particles in child cell 
             for ip in axes(px, 1)
@@ -135,7 +107,6 @@ function _shuffle_particles_vertex!(
                     end
                 end
             end
-
         end
     end
 

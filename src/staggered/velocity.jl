@@ -28,7 +28,7 @@ end
     dx = dxi[1]
     x_vx, y_vx = xi_vx
     xc = x_vx[idx_x]
-    xv = xc + 0.5*dx
+    xv = xc + 0.5 * dx
     # compute offsets and corrections
     offset_x = (px - xv) > 0 ? 0 : 1
     # cell indices
@@ -47,23 +47,22 @@ end
 
 # ADVECTION METHODS 
 
-function advection_RK2_edges!(particles::Particles, V, grid_vx::NTuple{2,T}, grid_vy::NTuple{2,T}, dt, α) where {T}
+function advection_RK2_edges!(
+    particles::Particles, V, grid_vx::NTuple{2,T}, grid_vy::NTuple{2,T}, dt, α
+) where {T}
     # unpack 
     (; coords, index, max_xcell) = particles
     px, = coords
     # compute some basic stuff
     dxi = compute_dx(grid_vx)
     grid_lims = (
-        extrema(grid_vx[1]),
-        extrema(grid_vy[2]),
+        extrema(grid_vx[1]) .+ (dxi[1] * 0.5, -dxi[1] * 0.5),
+        extrema(grid_vy[2]) .+ (dxi[2] * 0.5, -dxi[2] * 0.5),
     )
     clamped_limits = clamp_grid_lims(grid_lims, dxi)
     _, nx, ny = size(px)
     # Need to transpose grid_vy and Vy to reuse interpolation kernels
-    grid_vi = (
-        grid_vx,
-        (grid_vy[2], grid_vy[1])
-    )
+    grid_vi = (grid_vx, (grid_vy[2], grid_vy[1]))
     V_transp = (V[1], V[2]')
     # launch parallel advection kernel
     @parallel (1:max_xcell, 1:nx, 1:ny) advection_RK2_edges!(
@@ -82,7 +81,7 @@ end
     dxi,
     dt,
     α,
-) where {T, N}
+) where {T,N}
     px, py = p
     if icell ≤ size(px, 2) && jcell ≤ size(px, 3) && index[ipart, icell, jcell]
         pᵢ = (px[ipart, icell, jcell], py[ipart, icell, jcell])
@@ -95,7 +94,6 @@ end
 
     return nothing
 end
-
 
 """
     y ← y + h*( (1-1/2/α)*f(t,y) + (1/2/α) * f(t, y+α*h*f(t,y)) )
@@ -120,17 +118,10 @@ function _advection_RK2_edges(
     # interpolate velocity to current location
     vp0 = ntuple(ValN) do i
         if i == 1
-            _grid2particle_xcell_edge(
-                p0, grid_vi[i], dxi, v0[i], icell, jcell
-            )
+            _grid2particle_xcell_edge(p0, grid_vi[i], dxi, v0[i], icell, jcell)
         else
             _grid2particle_xcell_edge(
-                (p0[2], p0[1]), 
-                grid_vi[i], 
-                (dxi[2], dxi[1]), 
-                v0[i], 
-                jcell, 
-                icell
+                (p0[2], p0[1]), grid_vi[i], (dxi[2], dxi[1]), v0[i], jcell, icell
             )
         end
     end
@@ -144,17 +135,10 @@ function _advection_RK2_edges(
     # interpolate velocity to new location
     vp1 = ntuple(ValN) do i
         if i == 1
-            _grid2particle_xcell_edge(
-                p1, grid_vi[i], dxi, v0[i], icell, jcell
-            )
+            _grid2particle_xcell_edge(p1, grid_vi[i], dxi, v0[i], icell, jcell)
         else
             _grid2particle_xcell_edge(
-                (p1[2], p1[1]), 
-                grid_vi[i], 
-                (dxi[2], dxi[1]), 
-                v0[i], 
-                jcell, 
-                icell
+                (p1[2], p1[1]), grid_vi[i], (dxi[2], dxi[1]), v0[i], jcell, icell
             )
         end
     end
