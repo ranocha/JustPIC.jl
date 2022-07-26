@@ -63,7 +63,7 @@ function _shuffle_particles_vertex!(
     for j in -1:1, i in -1:1
         ichild, jchild = child_index(i, j)
         # ignore parent cell
-        if parent != (ichild, jchild) && (1 ≤ ichild ≤ nx - 1) && (1 ≤ jchild ≤ ny - 1)
+        @inbounds if parent != (ichild, jchild) && (1 ≤ ichild ≤ nx - 1) && (1 ≤ jchild ≤ ny - 1)
 
             # iterate over particles in child cell 
             for ip in axes(px, 1)

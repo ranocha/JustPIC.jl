@@ -44,7 +44,7 @@ include("shuffle_vertex.jl")
 export shuffle_particles_vertex!
 
 include("staggered/centered.jl")
-export int2part!
+export int2part!, int2part_vertex!
 
 include("staggered/velocity.jl")
 export advection_RK2_edges!

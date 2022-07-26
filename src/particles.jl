@@ -22,15 +22,6 @@ struct Particles{N,M,I,T1,T2,T3}
         # types
         T2 = typeof(index)
         T3 = typeof(inject)
-        # T = eltype(coords[1])
-        # # allocate buffers for gathering kernel
-        # upper_buffer = if PS_PACKAGE === :CUDA
-        #     CUDA.zeros(T, nxi...)
-        # else
-        #     [Array{T,N}(undef, nxi...) for _ in 1:Threads.nthreads()]
-        # end
-        # lower_buffer = similar.(upper_buffer)
-        # T4 = typeof(lower_buffer)
 
         return new{N,max_xcell,I,T1,T2,T3}(
             coords, index, inject, nxcell, max_xcell, min_xcell, np

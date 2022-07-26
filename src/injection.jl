@@ -139,7 +139,7 @@ function _inject_particles!(
     myrand() = rand(-1:2:1) * rand() * 0.5
     # --------------------------------------------
 
-    if inject[icell, jcell]
+    @inbounds if inject[icell, jcell]
         # count current number of particles inside the cell
         particles_num = false
         for i in 1:max_xcell
