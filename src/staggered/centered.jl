@@ -50,7 +50,9 @@ end
 
 ############
 
-function int2part_vertex!(Fp, F, F0, particles::Particles, grid::NTuple{2,T}; α=1.0) where {T}
+function int2part_vertex!(
+    Fp, F, F0, particles::Particles, grid::NTuple{2,T}; α=1.0
+) where {T}
     (; coords, index, max_xcell) = particles
     dxi = compute_dx(grid)
     px, py = coords

@@ -99,7 +99,7 @@ end
 @inline cart2lin(i, j, nx) = i + (j - 1) * nx
 @inline cart2lin(i, j, k, nx, ny) = cart2lin(i, j, nx) + (k - 1) * nx * ny
 
-@inline function corner_coordinate(grid::NTuple{N,T1}, I::Vararg{T2,N}) where {T1,T2,N}
+@inline function corner_coordinate(grid::NTuple{N,T1}, I::NTuple{N,T2}) where {T1,T2,N}
     return ntuple(i -> grid[i][I[i]], Val(N))
 end
 
@@ -132,17 +132,33 @@ end
     return true
 end
 
-@inline function isemptycell(
-    idx::Integer, index::AbstractArray{T,N}, max_xcell::Integer, min_xcell::Integer
-) where {T,N}
-    # closures
-    idx_range(i) = i:(i + max_xcell - 1)
+# @inline function isemptycell(
+#     idx::Integer, index::AbstractArray{T,N}, max_xcell::Integer, min_xcell::Integer
+# ) where {T,N}
+#     # closures
+#     idx_range(i) = i:(i + max_xcell - 1)
 
+#     val = 0
+#     for j in idx_range(idx)
+#         @inbounds index[j] && (val += 1)
+#     end
+#     return val ≥ min_xcell ? false : true
+# end
+
+@inline function isemptycell(
+    idx_cell::NTuple{N,Int64}, index::AbstractArray{T,N}, min_xcell::Integer
+) where {T,N}
     val = 0
-    for j in idx_range(idx)
-        @inbounds index[j] && (val += 1)
+    for i in axes(index, 1)
+        @inbounds index[i, idx_cell...] && (val += 1)
     end
     return val ≥ min_xcell ? false : true
+end
+
+@inline function isemptycell(
+    icell::Integer, jcell::Integer, index::AbstractArray{T,N}, min_xcell::Integer
+) where {T,N}
+    return isemptycell((icell, jcell), index, min_xcell)
 end
 
 @inline function isemptycell(
@@ -173,7 +189,7 @@ end
 @inline function clamp_grid_lims(grid_lims::NTuple{N,T1}, dxi::NTuple{N,T2}) where {N,T1,T2}
     clamped_limits = ntuple(Val(N)) do i
         min_L, max_L = grid_lims[i]
-        (min_L + dxi[i] * 0.01, max_L - dxi[i] * 0.01 )
+        (min_L + dxi[i] * 0.01, max_L - dxi[i] * 0.01)
     end
     return clamped_limits
 end
