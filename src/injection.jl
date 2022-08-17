@@ -201,9 +201,10 @@ function _inject_particles!(
 end
 
 function new_particle(xvi::NTuple{N,T}, dxi::NTuple{N,T}) where {N,T}
-    f() = rand(-1:2:1) * rand() * 0.5
+    f() = rand(-1:2:1) * rand() * 0.25
     p_new = ntuple(Val(N)) do i
-        xvi[i] + dxi[i] * 0.5 * (1.0 + f())
+        # xvi[i] + dxi[i] * 0.5 * (1.0 + f())
+        xvi[i] + dxi[i] * rand()
     end
 
     return p_new

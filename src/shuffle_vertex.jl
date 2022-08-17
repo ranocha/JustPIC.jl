@@ -6,14 +6,15 @@ function shuffle_particles_vertex!(particles::Particles, grid::NTuple{2,T}, args
     # px, py = particle_coords
     dxi = compute_dx(grid)
 
-    offsets = ((1, 0, 0), (2, 0, 0), (1, 0, 1), (1, 1, 0))
+    # offsets = ((1, 0, 0), (2, 0, 0), (1, 0, 1), (1, 1, 0))
     n_i = ceil(Int, nx * 0.5)
     n_j = ceil(Int, ny * 0.5)
 
-    for offset_i in offsets
-        offset, offset_x, offset_y = offset_i
+    # for offset_i in offsets
+    #     offset, offset_x, offset_y = offset_i
+    for offset_x in 1:2, offset_y in 1:2
         @parallel (1:n_i, 1:n_j) shuffle_particles_vertex_ps!(
-            coords, grid, dxi, nxi, index, offset, offset_x, offset_y, args
+            coords, grid, dxi, nxi, index, offset_x, offset_y, args
         )
     end
 
@@ -25,31 +26,27 @@ function shuffle_particles_vertex!(particles::Particles, grid::NTuple{3,T}, args
     (; coords, index) = particles
     nxi = length.(grid)
     nx, ny = nxi
-    # px, py = particle_coords
     dxi = compute_dx(grid)
 
-    offsets = ((1, 0, 0), (2, 0, 0), (1, 0, 1), (1, 1, 0))
     n_i = ceil(Int, nx * 0.5)
     n_j = ceil(Int, ny * 0.5)
-    n_k = ceil(Int, nk * 0.5)
+    n_k = ceil(Int, nz * 0.5)
 
-    for offset_i in offsets
-        offset, offset_x, offset_y = offset_i
-        offset_z = offset_x
+    for offset_x in 1:2, offset_y in 1:2, offset_z in 1:2
         @parallel (1:n_i, 1:n_j, 1:n_k) shuffle_particles_vertex_ps!(
-            coords, grid, dxi, nxi, index, offset, offset_x, offset_y, offset_z, args
-        )
+                coords, grid, dxi, nxi, index, offset_x, offset_y, offset_z, args,
+            )
     end
 
     return nothing
 end
 
 @parallel_indices (icell, jcell) function shuffle_particles_vertex_ps!(
-    particle_coords, grid, dxi::NTuple{2,T}, nxi, index, offset, offset_x, offset_y, args
+    particle_coords, grid, dxi::NTuple{2,T}, nxi, index, offset_x, offset_y, args
 ) where {T}
     nx, ny = nxi
-    i = offset + 2 * (icell - 1) + offset_x
-    j = offset + 2 * (jcell - 1) + offset_y
+    i = 2 * (icell - 1) + offset_x
+    j = 2 * (jcell - 1) + offset_y
 
     if (i ≤ nx - 1) && (j ≤ ny - 1)
         _shuffle_particles_vertex!(particle_coords, grid, dxi, nxi, index, (i, j), args)
@@ -63,52 +60,82 @@ end
     dxi::NTuple{3,T},
     nxi,
     index,
-    offset,
     offset_x,
     offset_y,
     offset_z,
     args,
 ) where {T}
     nx, ny = nxi
-    i = offset + 2 * (icell - 1) + offset_x
-    j = offset + 2 * (jcell - 1) + offset_y
-    k = offset + 2 * (kcell - 1) + offset_z
+    i = 2 * (icell - 1) + offset_x
+    j = 2 * (jcell - 1) + offset_y
+    k = 2 * (kcell - 1) + offset_z
 
-    if (i ≤ nx - 1) && (j ≤ ny - 1)
+    if (i ≤ nx - 1) && (j ≤ ny - 1) && (k ≤ nz - 1)
         _shuffle_particles_vertex!(particle_coords, grid, dxi, nxi, index, (i, j, k), args)
     end
     return nothing
 end
 
-function _shuffle_particles_vertex!(
-    particle_coords, grid, dxi, nxi, index, parent_cell::NTuple{2,Int64}, args
-)
+# function _shuffle_particles_vertex!(
+#     particle_coords, grid, dxi, nxi, index, parent_cell::NTuple{2,Int64}, args
+# )
 
-    # coordinate of the lower-most-left coordinate of the parent cell 
-    corner_xi = corner_coordinate(grid, parent_cell)
-    # iterate over neighbouring (child) cells
-    for j in -1:1, i in -1:1
-        idx_loop = (i, j)
-        __shuffle_particles_vertex!(
-            particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
-        )
-    end
+#     # coordinate of the lower-most-left coordinate of the parent cell 
+#     corner_xi = corner_coordinate(grid, parent_cell)
+#     # iterate over neighbouring (child) cells
+#     for j in -1:1, i in -1:1
+#         idx_loop = (i, j)
+#         __shuffle_particles_vertex!(
+#             particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
+#         )
+#     end
 
-    return nothing
-end
+#     return nothing
+# end
 
-function _shuffle_particles_vertex!(
-    particle_coords, grid, dxi, nxi, index, parent_cell::NTuple{3,Int64}, args
-)
+# function _shuffle_particles_vertex!(
+#     particle_coords, grid, dxi, nxi, index, parent_cell::NTuple{3,Int64}, args
+# )
+#     # coordinate of the lower-most-left coordinate of the parent cell 
+#     corner_xi = corner_coordinate(grid, parent_cell)
+#     # iterate over neighbouring (child) cells
+#     for k in -1:1, j in -1:1, i in -1:1
+#         idx_loop = (i, j, k)
+#         if idx_loop != (0,0,0)
+#             __shuffle_particles_vertex!(
+#                 particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
+#             )
+#         end
+#     end
 
-    # coordinate of the lower-most-left coordinate of the parent cell 
-    corner_xi = corner_coordinate(grid, parent_cell)
-    # iterate over neighbouring (child) cells
-    for k in -1:1, j in -1:1, i in -1:1
-        idx_loop = (i, j, k)
-        __shuffle_particles_vertex!(
-            particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
-        )
+#     return nothing
+# end
+
+@generated function _shuffle_particles_vertex!(
+    particle_coords, grid, dxi, nxi, index, parent_cell::NTuple{N,Int64}, args
+) where N
+    quote
+        # coordinate of the lower-most-left coordinate of the parent cell 
+        # iterate over neighbouring (child) cells
+        corner_xi = corner_coordinate(grid, parent_cell)
+        if $N==2
+            for j in -1:1, i in -1:1
+                idx_loop = (i, j)
+                __shuffle_particles_vertex!(
+                    particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
+                )
+            end
+
+        elseif $N==3
+            for k in -1:1, j in -1:1, i in -1:1
+                idx_loop = (i, j, k)
+                if idx_loop != (0,0,0)
+                    __shuffle_particles_vertex!(
+                        particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
+                    )
+                end
+            end
+        end
     end
 
     return nothing
@@ -120,15 +147,15 @@ function __shuffle_particles_vertex!(
     dxi,
     nxi,
     index,
-    parent_cell::NTuple{N,Int64},
-    args::NTuple{N,T},
-    idx_loop::NTuple{N,Int64},
-) where {N,T}
+    parent_cell::NTuple{N1,Int64},
+    args::NTuple{N2,T},
+    idx_loop::NTuple{N1,Int64},
+) where {N1,N2,T}
     idx_child = child_index(parent_cell, idx_loop)
     # ignore parent cell and "ghost" cells outside the domain
-    @inbounds if parent_cell != idx_child && indomain(idx_child, nxi)
+    @inbounds if indomain(idx_child, nxi)
         # iterate over particles in child cell 
-        for ip in axes(particle_coords[1], 1)
+        for ip in axes(index, 1)
             if index[ip, idx_child...] # true if memory allocation is filled with a particle
                 p_child = cache_particle(particle_coords, ip, idx_child)
 
@@ -146,11 +173,11 @@ function __shuffle_particles_vertex!(
                     # check whether there's empty space in parent cell
                     free_idx = find_free_memory(index, idx_child)
                     free_idx == 0 && continue
-
+                    
                     # move particle and its fields to the first free memory location
                     index[free_idx, parent_cell...] = true
-                    fill_particle!(particle_coords, current_p, ip, parent_cell)
-                    fill_particle!(args, current_args, ip, parent_cell)
+                    fill_particle!(particle_coords, current_p, free_idx, parent_cell)
+                    fill_particle!(args, current_args, free_idx, parent_cell)
                 end
             end
         end
@@ -194,19 +221,19 @@ end
     return ntuple(i -> parent_cell[i] + I[i], Val(N))
 end
 
-@generated function empty_particle!(p::NTuple{N,T}, ip, I::NTuple{N,Int64}) where {N,T}
+@generated function empty_particle!(p::NTuple{N1,T}, ip, I::NTuple{N2,Int64}) where {N1, N2, T}
     quote
         Base.@_inline_meta
-        Base.Cartesian.@nexprs $N i -> @inbounds p[i][ip, I...] = NaN
+        Base.Cartesian.@nexprs $N1 i -> @inbounds p[i][ip, I...] = NaN
     end
 end
 
 @generated function fill_particle!(
-    p::NTuple{N,T1}, field::NTuple{N,T2}, ip, I::NTuple{N,Int64}
-) where {N,T1,T2}
+    p::NTuple{N1,T1}, field::NTuple{N1,T2}, ip, I::NTuple{N2,Int64}
+) where {N1,N2,T1,T2}
     quote
         Base.@_inline_meta
-        Base.Cartesian.@nexprs $N i -> @inbounds p[i][ip, I...] = field[i]
+        Base.Cartesian.@nexprs $N1 i -> p[i][ip, I...] = field[i]
     end
 end
 

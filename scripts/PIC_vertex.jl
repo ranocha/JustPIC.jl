@@ -12,11 +12,9 @@ using ParallelStencil.FiniteDifferences2D
 @init_parallel_stencil(Threads, Float64, 2)
 
 # using StencilInterpolations
-include(
-    "/home/albert/Desktop/StencilInterpolations.jl/src/StencilInterpolations.jl"
-)
+# include("/home/albert/Desktop/StencilInterpolations.jl/src/StencilInterpolations.jl")
 
-using .StencilInterpolations
+using StencilInterpolations
 
 # import .StencilInterpolations: _grid2particle
 
@@ -183,8 +181,8 @@ function twoxtwo_particles2D(nxcell, max_xcell, x, y, dx, dy, nx, ny, lx, ly)
 end
 
 function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
-    Vx = Vx[1:end-1,:]
-    Vy = Vy[:,1:end-1]
+    Vx = Vx[1:(end - 1), :]
+    Vy = Vy[:, 1:(end - 1)]
     Vx = PS_PACKAGE === :CUDA ? CuArray(Vx) : Vx
     Vy = PS_PACKAGE === :CUDA ? CuArray(Vy) : Vy
 
@@ -193,7 +191,7 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
 
     # model domain
     lx = ly = 10.0
-    dx, dy = lx / (nx-1), ly / (ny-1)
+    dx, dy = lx / (nx - 1), ly / (ny - 1)
     dxi = (dx, dy)
     nxi = (nx, ny)
     x = LinRange(dx / 2, lx - dx / 2, nx)
@@ -202,12 +200,12 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
     # velocity grids
     xv = 0:dx:lx
     yv = 0:dy:ly
-    yvx = -dx/2:dy:ly+dy/2
-    xvy = -dx/2:dx:lx+dx/2
+    yvx = (-dx / 2):dy:(ly + dy / 2)
+    xvy = (-dx / 2):dx:(lx + dx / 2)
     grid_vx = (xv, yvx)
     grid_vy = (xvy, yv)
 
-    T = PS_PACKAGE === :CUDA ? CUDA.zeros(Float64, nx + 2, ny + 2) : zeros(nx, ny )
+    T = PS_PACKAGE === :CUDA ? CUDA.zeros(Float64, nx + 2, ny + 2) : zeros(nx, ny)
     T0 = similar(T)
 
     # random particles
@@ -226,7 +224,7 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
     args = (pT,)
     gridv = (0:dx:lx, 0:dy:ly)
     gathering_xvertex!(T, pT, gridv, particles.coords)
-    grid2particle_xvertex!(pT, gridv, T,  particles.coords)
+    grid2particle_xvertex!(pT, gridv, T, particles.coords)
 
     while it ≤ nt
         if it == nt ÷ 2
@@ -238,7 +236,7 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
 
             # advect particles in space
             # advection_RK2!(particles, V, grid, dt, α)
-            advection_RK2_edges!(particles, V, grid_vx, grid_vy, dt, α) 
+            advection_RK2_edges!(particles, V, grid_vx, grid_vy, dt, α)
 
             # advect particles in memory
             shuffle_particles!(particles, grid, dxi, nxi, args)
@@ -289,7 +287,6 @@ Vx, Vy = load_benchmark_data("data/data41_benchmark.mat")
 # injected_23, t_23 = main(Vx, Vy; nx=nx, ny=ny, α=2 / 3, nt=1000, viz = false)
 # injected_heun, t_heun = main(Vx, Vy; nx=nx, ny=ny, α=1.0, nt=1000)
 
-
 #  lines((cumsum(injected_rk2)); color=:red)
 # lines!((cumsum(injected_heun)); color=:green)
 # lines!((cumsum(injected_23)); color=:blue)
@@ -308,7 +305,6 @@ Vx, Vy = load_benchmark_data("data/data41_benchmark.mat")
 # )
 
 # CSV.write("CPU_baseline.csv", df)
-
 
 # @inline @generated function foo(a::NTuple{N,T}, b::NTuple{N,T}, dxi::NTuple{N,T}) where {N,T}
 #     quote
@@ -367,48 +363,45 @@ Vx, Vy = load_benchmark_data("data/data41_benchmark.mat")
 # gridv = (0:dx:lx, 0:dy:ly)
 # bar!(T, pT, gridv, particles.coords)
 
+# function foo!(Fp, xvi, F::Array{T,N}, particle_coords) where {T,N}
+#     # cell dimensions
+#     dxi = StencilInterpolations.grid_size(xvi)
 
-function foo!(Fp, xvi, F::Array{T,N}, particle_coords) where {T,N}
-    # cell dimensions
-    dxi = StencilInterpolations.grid_size(xvi)
-   
-    nx, ny = length.(xvi)
-    max_xcell = size(particle_coords[1], 1)
-    Threads.@threads for jnode in 1:ny-1
-        for inode in 1:nx-1
-            _foo!(
-                Fp, particle_coords, xvi, dxi, F, max_xcell, inode, jnode
-            )
-        end
-    end
-end
+#     nx, ny = length.(xvi)
+#     max_xcell = size(particle_coords[1], 1)
+#     Threads.@threads for jnode in 1:(ny - 1)
+#         for inode in 1:(nx - 1)
+#             _foo!(Fp, particle_coords, xvi, dxi, F, max_xcell, inode, jnode)
+#         end
+#     end
+# end
 
+# function _foo!(
+#     Fp, p::NTuple, xvi::NTuple, dxi::NTuple, F::AbstractArray, max_xcell, inode, jnode
+# )
+#     idx = (inode, jnode)
 
-function _foo!(Fp, p::NTuple, xvi::NTuple, dxi::NTuple, F::AbstractArray, max_xcell, inode, jnode)
-    idx = (inode, jnode)
+#     @inline function particle2tuple(ip::Integer, idx::NTuple{N,T}) where {N,T}
+#         return ntuple(i -> p[i][ip, idx...], Val(N))
+#     end
 
-    @inline function particle2tuple(ip::Integer, idx::NTuple{N,T}) where {N, T}
-        return ntuple(i -> p[i][ip, idx...], Val(N))
-    end
+#     for i in 1:max_xcell
+#         # check that the particle is inside the grid
+#         # isinside(p, xi)
 
-    for i in 1:max_xcell
-        # check that the particle is inside the grid
-        # isinside(p, xi)
+#         p_i = particle2tuple(i, idx)
 
-        p_i = particle2tuple(i, idx)
+#         any(isnan, p_i) && continue
 
-        any(isnan, p_i) && continue
+#         # F at the cell corners
+#         Fi = StencilInterpolations.field_corners(F, idx)
 
-        # F at the cell corners
-        Fi = StencilInterpolations.field_corners(F, idx)
+#         # normalize particle coordinates
+#         ti = StencilInterpolations.normalize_coordinates(p_i, xvi, dxi, idx)
 
-        # normalize particle coordinates
-        ti = StencilInterpolations.normalize_coordinates(p_i, xvi, dxi, idx)
+#         # Interpolate field F onto particle
+#         Fp[i, inode, jnode] = ndlinear(ti, Fi)
+#     end
+# end
 
-        # Interpolate field F onto particle
-        Fp[i, inode, jnode] = ndlinear(ti, Fi)
-
-    end
-end
-
-foo!(pT, gridv, T,  particles.coords)
+# foo!(pT, gridv, T, particles.coords)

@@ -22,25 +22,60 @@ end
 ) where {T}
     # unpack
     idx_x, idx_y = idx
-    px = p_i[1]
-    dx = dxi[1]
+    @inbounds px = p_i[1]
+    @inbounds dx = dxi[1]
     x_vx, y_vx = xi_vx
-    xc = x_vx[idx_x]
+    @inbounds xc = x_vx[idx_x]
     xv = xc + 0.5 * dx
     # compute offsets and corrections
     offset_x = (px - xv) > 0 ? 0 : 1
     # cell indices
     idx_x += offset_x
     # coordinates of lower-left corner of the cell
-    xcell = x_vx[idx_x]
-    ycell = y_vx[idx_y]
+    @inbounds xcell = x_vx[idx_x]
+    @inbounds ycell = y_vx[idx_y]
 
     # F at the four centers
-    Fi = (
+    Fi = @inbounds (
         F[idx_x, idx_y], F[idx_x + 1, idx_y], F[idx_x, idx_y + 1], F[idx_x + 1, idx_y + 1]
     )
 
     return Fi, (xcell, ycell)
+end
+
+
+@inline function edge_nodes(
+    F::AbstractArray{T,3}, p_i, xi_vx, dxi, idx::NTuple{3,Integer}
+) where {T}
+    # unpack
+    idx_x, idx_y, idx_z = idx
+    @inbounds px = p_i[1]
+    @inbounds dx = dxi[1]
+    x_vx, y_vx, z_vx = xi_vx
+    @inbounds xc = x_vx[idx_x]
+    xv = xc + 0.5 * dx
+    # compute offsets and corrections
+    offset_x = (px - xv) > 0 ? 0 : 1
+    # cell indices
+    idx_x += offset_x
+    # coordinates of lower-left corner of the cell
+    @inbounds xcell = x_vx[idx_x]
+    @inbounds ycell = y_vx[idx_y]
+    @inbounds zcell = z_vx[idx_z]
+
+    # F at the four centers
+    Fi = @inbounds  (
+        F[idx_x, idx_y, idx_z], # v000
+        F[idx_x + 1, idx_y, idx_z], # v100
+        F[idx_x, idx_y, idx_z + 1], # v001
+        F[idx_x + 1, idx_y, idx_z + 1], # v101
+        F[idx_x, idx_y + 1, idx_z], # v010
+        F[idx_x + 1, idx_y + 1, idx_z], # v110
+        F[idx_x, idx_y + 1, idx_z + 1], # v011
+        F[idx_x + 1, idx_y + 1, idx_z + 1], # v111
+    )
+
+    return Fi, (xcell, ycell, zcell)
 end
 
 # ADVECTION METHODS 
@@ -54,8 +89,8 @@ function advection_RK2_edges!(
     # compute some basic stuff
     dxi = compute_dx(grid_vx)
     grid_lims = (
-        extrema(grid_vx[1]) .+ (dxi[1] * 0.5, -dxi[1] * 0.5),
-        extrema(grid_vy[2]) .+ (dxi[2] * 0.5, -dxi[2] * 0.5),
+        extrema(grid_vx[1]) .+ (dxi[1] * 1e-3, -dxi[1] * 1e-3),
+        extrema(grid_vy[2]) .+ (dxi[2] * 1e-3, -dxi[2] * 1e-3),
     )
     clamped_limits = clamp_grid_lims(grid_lims, dxi)
     _, nx, ny = size(px)
@@ -85,9 +120,9 @@ function advection_RK2_edges!(
     # compute some basic stuff
     dxi = compute_dx(grid_vx)
     grid_lims = (
-        extrema(grid_vx[1]) .+ (dxi[1] * 0.5, -dxi[1] * 0.5),
-        extrema(grid_vy[2]) .+ (dxi[2] * 0.5, -dxi[2] * 0.5),
-        extrema(grid_vy[3]) .+ (dxi[3] * 0.5, -dxi[3] * 0.5),
+        extrema(grid_vx[1]) .+ (dxi[1] * 1e-3, -dxi[1] * 1e-3),
+        extrema(grid_vy[2]) .+ (dxi[2] * 1e-3, -dxi[2] * 1e-3),
+        extrema(grid_vy[3]) .+ (dxi[3] * 1e-3, -dxi[3] * 1e-3),
     )
     clamped_limits = clamp_grid_lims(grid_lims, dxi)
     _, nx, ny, nz = size(px)
@@ -95,7 +130,7 @@ function advection_RK2_edges!(
     grid_vi = (
         grid_vx, (grid_vy[2], grid_vy[1], grid_vy[3]), (grid_vz[3], grid_vz[2], grid_vz[1])
     )
-    V_transp = (V[1], V[2]', V[3]')
+    V_transp = (V[1], permutedims(V[2], (2,1,3)), permutedims(V[3],(3,2,1)))
     # launch parallel advection kernel
     @parallel (1:nx, 1:ny, 1:nz) advection_RK2_edges!(
         coords, V_transp, index, grid_vi, clamped_limits, dxi, dt, α
@@ -168,7 +203,7 @@ end
 """
 function _advection_RK2_edges(
     p0::NTuple{N,T},
-    v0::NTuple{N,AbstractArray{T,N}},
+    V::NTuple{N,AbstractArray{T,N}},
     grid_vi,
     dxi,
     clamped_limits,
@@ -178,31 +213,35 @@ function _advection_RK2_edges(
 ) where {T,N}
     _α = inv(α)
     ValN = Val(N)
-
+    # αdt = α * dt
     # interpolate velocity to current location
     vp0 = ntuple(ValN) do i
-        _grid2particle_xcell_edge(flip(p0, i), grid_vi[i], flip(dxi, i), v0[i], flip(idx, i))
+        Base.@_inline_meta
+        _grid2particle_xcell_edge(flip(p0, i), grid_vi[i], flip(dxi, i), V[i], flip(idx, i))
     end
 
     # advect α*dt
     p1 = ntuple(ValN) do i
-        xtmp = p0[i] + vp0[i] * α * dt
-        clamp(xtmp, clamped_limits[i][1], clamped_limits[i][2])
+        Base.@_inline_meta
+        vp0[i]* α*dt + p0[i]
+        # clamp(xtmp, clamped_limits[i][1], clamped_limits[i][2])
     end
 
     # interpolate velocity to new location
     vp1 = ntuple(ValN) do i
-        _grid2particle_xcell_edge(flip(p1, i), grid_vi[i], flip(dxi, i), v0[i], flip(idx, i))
+        Base.@_inline_meta
+        _grid2particle_xcell_edge(flip(p1, i), grid_vi[i], flip(dxi, i), V[i], flip(idx, i))
     end
 
     # final advection
     pf = ntuple(ValN) do i
-        ptmp = if α == 0.5
+        Base.@_inline_meta
+        if α == 0.5
             @muladd p0[i] + dt * vp1[i]
         else
             @muladd p0[i] + dt * ((1.0 - 0.5 * _α) * vp0[i] + 0.5 * _α * vp1[i])
         end
-        clamp(ptmp, clamped_limits[i][1], clamped_limits[i][2])
+        # clamp(ptmp, clamped_limits[i][1], clamped_limits[i][2])
     end
 
     return pf

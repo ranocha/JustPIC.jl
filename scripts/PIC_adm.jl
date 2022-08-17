@@ -181,8 +181,8 @@ function twoxtwo_particles2D(nxcell, max_xcell, x, y, dx, dy, nx, ny, lx, ly)
 end
 
 function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
-    Vx = Vx[1:end-1,:]
-    Vy = Vy[:,1:end-1]
+    Vx = Vx[1:(end - 1), :]
+    Vy = Vy[:, 1:(end - 1)]
     Vx = PS_PACKAGE === :CUDA ? CuArray(Vx) : Vx
     Vy = PS_PACKAGE === :CUDA ? CuArray(Vy) : Vy
 
@@ -200,8 +200,8 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
     # velocity grids
     xv = 0:dx:lx
     yv = 0:dy:ly
-    yvx = -dx/2:dy:ly+dy/2
-    xvy = -dx/2:dx:lx+dx/2
+    yvx = (-dx / 2):dy:(ly + dy / 2)
+    xvy = (-dx / 2):dx:(lx + dx / 2)
     grid_vx = (xv, yvx)
     grid_vy = (xvy, yv)
 
@@ -243,7 +243,7 @@ function main(Vx, Vy; nx=42, ny=42, nxcell=4, α=2 / 3, nt=1_000, viz=false)
 
             # advect particles in space
             # advection_RK2!(particles, V, grid, dt, α)
-            advection_RK2_edges!(particles, V, grid_vx, grid_vy, dt, α) 
+            advection_RK2_edges!(particles, V, grid_vx, grid_vy, dt, α)
 
             # advect particles in memory
             shuffle_particles!(particles, grid, dxi, nxi, args)
@@ -286,7 +286,6 @@ Vx, Vy = load_benchmark_data("data/data41_benchmark.mat")
 # injected_23, t_23 = main(Vx, Vy; nx=nx, ny=ny, α=2 / 3, nt=1000, viz = false)
 # injected_heun, t_heun = main(Vx, Vy; nx=nx, ny=ny, α=1.0, nt=1000)
 
-
 #  lines((cumsum(injected_rk2)); color=:red)
 # lines!((cumsum(injected_heun)); color=:green)
 # lines!((cumsum(injected_23)); color=:blue)
@@ -305,3 +304,59 @@ Vx, Vy = load_benchmark_data("data/data41_benchmark.mat")
 # )
 
 # CSV.write("CPU_baseline.csv", df)
+
+@generated function foo!(A::AbstractArray{T, N}, B::AbstractArray{T, N}) where {T,N}
+    if N==2
+        quote
+           for j in axes(A,2), i in axes(A,1)
+            A[i,j]=B[i,j]
+           end
+        end
+    elseif N==3
+        quote
+           for k in axes(A,3), j in axes(A,2), i in axes(A,1)
+            A[i,j,k]=B[i,j,k]
+           end
+        end
+    end
+end
+
+@generated function foo2!(A::AbstractArray{T, N}, B::AbstractArray{T, N}) where {T,N}
+    quote
+        if $N==2
+            for j in axes(A,2), i in axes(A,1)
+                A[i,j]=B[i,j]
+            end
+        end
+        if $N==3
+            for k in axes(A,3), j in axes(A,2), i in axes(A,1)
+                A[i,j,k]=B[i,j,k]
+            end
+        end
+    end
+end
+ 
+function bar!(A::AbstractArray{T, N}, B::AbstractArray{T, N}) where {T,N}
+    # if N==2
+    #     for j in axes(A,2), i in axes(A,1)
+    #         A[i,j]=B[i,j]
+    #     end
+    # elseif N==3
+        for k in axes(A,3), j in axes(A,2), i in axes(A,1)
+            A[i,j,k]=B[i,j,k]
+        end
+    # end
+end
+
+@code_warntype foo!(a,b)
+@code_warntype foo2!(a,b)
+@btime foo!($a,$b)
+@btime foo2!($a,$b)
+@btime bar!($a,$b)
+
+n=128
+a= rand(n,n)
+b= rand(n,n)
+
+a= rand(n,n,n)
+b= rand(n,n,n)
