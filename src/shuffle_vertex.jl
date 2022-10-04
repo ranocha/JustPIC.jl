@@ -76,70 +76,72 @@ end
     return nothing
 end
 
-# function _shuffle_particles_vertex!(
-#     particle_coords, grid, dxi, nxi, index, parent_cell::NTuple{2,Int64}, args
-# )
+function _shuffle_particles_vertex!(
+    particle_coords, grid, dxi, nxi, index, parent_cell::NTuple{2,Int64}, args
+)
 
-#     # coordinate of the lower-most-left coordinate of the parent cell 
-#     corner_xi = corner_coordinate(grid, parent_cell)
-#     # iterate over neighbouring (child) cells
-#     for j in -1:1, i in -1:1
-#         idx_loop = (i, j)
-#         __shuffle_particles_vertex!(
-#             particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
-#         )
-#     end
-
-#     return nothing
-# end
-
-# function _shuffle_particles_vertex!(
-#     particle_coords, grid, dxi, nxi, index, parent_cell::NTuple{3,Int64}, args
-# )
-#     # coordinate of the lower-most-left coordinate of the parent cell 
-#     corner_xi = corner_coordinate(grid, parent_cell)
-#     # iterate over neighbouring (child) cells
-#     for k in -1:1, j in -1:1, i in -1:1
-#         idx_loop = (i, j, k)
-#         if idx_loop != (0,0,0)
-#             __shuffle_particles_vertex!(
-#                 particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
-#             )
-#         end
-#     end
-
-#     return nothing
-# end
-
-@generated function _shuffle_particles_vertex!(
-    particle_coords, grid, dxi, nxi, index, parent_cell::NTuple{N,Int64}, args
-) where N
-    quote
-        # coordinate of the lower-most-left coordinate of the parent cell 
-        # iterate over neighbouring (child) cells
-        corner_xi = corner_coordinate(grid, parent_cell)
-        if $N==2
-            for j in -1:1, i in -1:1
-                idx_loop = (i, j)
-                __shuffle_particles_vertex!(
-                    particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
-                )
-            end
-
-        elseif $N==3
-            for k in -1:1, j in -1:1, i in -1:1
-                idx_loop = (i, j, k)
-                if idx_loop != (0,0,0)
-                    __shuffle_particles_vertex!(
-                        particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
-                    )
-                end
-            end
+    # coordinate of the lower-most-left coordinate of the parent cell 
+    corner_xi = corner_coordinate(grid, parent_cell)
+    # iterate over neighbouring (child) cells
+    for j in -1:1, i in -1:1
+        idx_loop = (i, j)
+        if idx_loop != (0,0)
+            __shuffle_particles_vertex!(
+                particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
+            )
         end
     end
 
     return nothing
 end
+
+function _shuffle_particles_vertex!(
+    particle_coords, grid, dxi, nxi, index, parent_cell::NTuple{3,Int64}, args
+)
+    # coordinate of the lower-most-left coordinate of the parent cell 
+    corner_xi = corner_coordinate(grid, parent_cell)
+    # iterate over neighbouring (child) cells
+    for k in -1:1, j in -1:1, i in -1:1
+        idx_loop = (i, j, k)
+        if idx_loop != (0,0,0)
+            __shuffle_particles_vertex!(
+                particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
+            )
+        end
+    end
+
+    return nothing
+end
+
+# @generated function _shuffle_particles_vertex!(
+#     particle_coords, grid, dxi, nxi, index, parent_cell::NTuple{N,Int64}, args
+# ) where N
+#     quote
+#         # coordinate of the lower-most-left coordinate of the parent cell 
+#         # iterate over neighbouring (child) cells
+#         corner_xi = corner_coordinate(grid, parent_cell)
+#         if $N==2
+#             for j in -1:1, i in -1:1
+#                 idx_loop = (i, j)
+#                 __shuffle_particles_vertex!(
+#                     particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
+#                 )
+#             end
+
+#         elseif $N==3
+#             for k in -1:1, j in -1:1, i in -1:1
+#                 idx_loop = (i, j, k)
+#                 if idx_loop != (0,0,0)
+#                     __shuffle_particles_vertex!(
+#                         particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
+#                     )
+#                 end
+#             end
+#         end
+#     end
+
+#     return nothing
+# end
 
 function __shuffle_particles_vertex!(
     particle_coords,

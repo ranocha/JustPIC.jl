@@ -106,6 +106,7 @@ end
     return nothing
 end
 
+
 @parallel_indices (icell, jcell, kcell) function check_injection!(inject, index, min_xcell)
     if icell ≤ size(index, 2) && jcell ≤ size(index, 3) && kcell ≤ size(index, 4)
         inject[icell, jcell, kcell] = isemptycell(icell, jcell, index, min_xcell)

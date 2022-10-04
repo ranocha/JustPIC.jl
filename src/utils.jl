@@ -145,21 +145,21 @@ end
 #     return val ≥ min_xcell ? false : true
 # end
 
-@inline function isemptycell(
-    idx_cell::NTuple{N,Int64}, index::AbstractArray{T,N}, min_xcell::Integer
-) where {T,N}
-    val = 0
-    for i in axes(index, 1)
-        @inbounds index[i, idx_cell...] && (val += 1)
-    end
-    return val ≥ min_xcell ? false : true
-end
+# @inline function isemptycell(
+#     idx_cell::NTuple{N,Int64}, index::AbstractArray{T,N}, min_xcell::Integer
+# ) where {T,N}
+#     val = 0
+#     for i in axes(index, 1)
+#         @inbounds index[i, idx_cell...] && (val += 1)
+#     end
+#     return val ≥ min_xcell ? false : true
+# end
 
-@inline function isemptycell(
-    icell::Integer, jcell::Integer, index::AbstractArray{T,N}, min_xcell::Integer
-) where {T,N}
-    return isemptycell((icell, jcell), index, min_xcell)
-end
+# @inline function isemptycell(
+#     icell::Integer, jcell::Integer, index::AbstractArray{T,N}, min_xcell::Integer
+# ) where {T,N}
+#     return isemptycell((icell, jcell), index, min_xcell)
+# end
 
 @inline function isemptycell(
     icell::Integer, jcell::Integer, index::AbstractArray{T,N}, min_xcell::Integer
