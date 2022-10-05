@@ -99,7 +99,7 @@ function check_injection(particles::Particles{N,A,B,C,D,E}) where {N,A,B,C,D,E}
     return check_injection(particles.inject)
 end
 
-@parallel_indices (icell, jcell) function check_injection!(inject, index, min_xcell)
+@parallel_indices (icell, jcell) function check_injection!(inject::AbstractArray{T,3}, index, min_xcell) where T
     if icell ≤ size(index, 2) && jcell ≤ size(index, 3)
         inject[icell, jcell] = isemptycell(icell, jcell, index, min_xcell)
     end
@@ -107,7 +107,7 @@ end
 end
 
 
-@parallel_indices (icell, jcell, kcell) function check_injection!(inject, index, min_xcell)
+@parallel_indices (icell, jcell, kcell) function check_injection!(inject::AbstractArray{T,4}, index, min_xcell) where T
     if icell ≤ size(index, 2) && jcell ≤ size(index, 3) && kcell ≤ size(index, 4)
         inject[icell, jcell, kcell] = isemptycell(icell, jcell, index, min_xcell)
     end
