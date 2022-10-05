@@ -173,7 +173,7 @@ function __shuffle_particles_vertex!(
                     empty_particle!(args, ip, idx_child)
 
                     # check whether there's empty space in parent cell
-                    free_idx = find_free_memory(index, idx_child)
+                    free_idx = find_free_memory(index, parent_cell)
                     free_idx == 0 && continue
                     
                     # move particle and its fields to the first free memory location
@@ -186,13 +186,21 @@ function __shuffle_particles_vertex!(
     end
 end
 
-@generated function find_free_memory(index, I::NTuple{N,Int64}) where {N}
-    quote
-        Base.@_inline_meta
-        Base.Cartesian.@nexprs $N i -> @inbounds index[i, I...] == 0 && return i
-        return 0
+# @generated function find_free_memory(index, I::NTuple{N,Int64}) where {N}
+#     quote
+#         Base.@_inline_meta
+#         Base.Cartesian.@nexprs $N i -> @inbounds index[i, I...] == 0 && return i
+#         return 0
+#     end
+# end
+
+function find_free_memory(index, I::NTuple{N,Int64}) where {N}
+    for i in axes(index,1)
+        @inbounds index[i, I...] == 0 && return i
     end
+    return 0
 end
+
 
 @generated function indomain(idx_child::NTuple{N,Integer}, nxi::NTuple{N,Integer}) where {N}
     quote
