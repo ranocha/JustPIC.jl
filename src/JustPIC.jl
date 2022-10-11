@@ -6,13 +6,15 @@ using StencilInterpolations
 
 const PS_PACKAGE = ENV["PS_PACKAGE"]
 
-eval(:(@static PS_PACKAGE === "CUDA" && using CUDA))
+# eval(:(PS_PACKAGE === "CUDA" && using CUDA))
 
-!ParallelStencil.is_initialized() && eval(:(@static if PS_PACKAGE === "CUDA"
-    @init_parallel_stencil(CUDA, Float64, 2)
-elseif PS_PACKAGE == :Threads
-    @init_parallel_stencil(Threads, Float64, 2)
-end))
+if !ParallelStencil.is_initialized()
+    if PS_PACKAGE === "CUDA" 
+        @eval @init_parallel_stencil(CUDA, Float64, 2) 
+    else
+        @eval @init_parallel_stencil(Threads, Float64, 2)
+    end
+end
 
 export gathering!, gathering_xcell!, gathering_xvertex!
 export grid2particle!, grid2particle_xvertex!, grid2particle_xcell!
