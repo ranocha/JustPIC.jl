@@ -99,19 +99,19 @@ function check_injection(particles::Particles{N,A,B,C,D,E}) where {N,A,B,C,D,E}
     return check_injection(particles.inject)
 end
 
-@parallel_indices (icell, jcell) function check_injection!(inject, index, min_xcell) 
+@parallel_indices (icell, jcell) function check_injection!(inject, index, min_xcell)
     if icell ≤ size(index, 2) && jcell ≤ size(index, 3)
         inject[icell, jcell] = isemptycell(icell, jcell, index, min_xcell)
     end
     return nothing
 end
 
-# @parallel_indices (icell, jcell, kcell) function check_injection!(inject, index, min_xcell) where T
-#     if icell ≤ size(index, 2) && jcell ≤ size(index, 3) && kcell ≤ size(index, 4)
-#         inject[icell, jcell, kcell] = isemptycell(icell, jcell, index, min_xcell)
-#     end
-#     return nothing
-# end
+@parallel_indices (icell, jcell, kcell) function check_injection!(inject, index, min_xcell)
+    if icell ≤ size(index, 2) && jcell ≤ size(index, 3) && kcell ≤ size(index, 4)
+        inject[icell, jcell, kcell] = isemptycell(icell, jcell, index, min_xcell)
+    end
+    return nothing
+end
 
 function inject_particles!(particles::Particles, args, fields, grid::NTuple{2,T}) where {T}
     # unpack
@@ -189,8 +189,7 @@ function _inject_particles!(
 
                 for (arg_i, field_i) in zip(args, fields)
                     tmp = _grid2particle_xvertex(p_new, grid, dxi, field_i, idx_cell)
-                    arg_i[i, idx_cell...] = tmp
-                    # arg_i[i, idx_cell...] = clamp(tmp, extrema(field_i)...)
+                    arg_i[i, idx_cell...] = clamp(tmp, extrema(field_i)...)
                 end
             end
 
