@@ -76,72 +76,70 @@ end
     return nothing
 end
 
-function _shuffle_particles_vertex!(
-    particle_coords, grid, dxi, nxi, index, parent_cell::NTuple{2,Int64}, args
-)
+# function _shuffle_particles_vertex!(
+#     particle_coords, grid, dxi, nxi, index, parent_cell::NTuple{2,Int64}, args
+# )
 
-    # coordinate of the lower-most-left coordinate of the parent cell 
-    corner_xi = corner_coordinate(grid, parent_cell)
-    # iterate over neighbouring (child) cells
-    for j in -1:1, i in -1:1
-        idx_loop = (i, j)
-        if idx_loop != (0,0)
-            __shuffle_particles_vertex!(
-                particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
-            )
-        end
-    end
+#     # coordinate of the lower-most-left coordinate of the parent cell 
+#     corner_xi = corner_coordinate(grid, parent_cell)
+#     # iterate over neighbouring (child) cells
+#     for j in -1:1, i in -1:1
+#         idx_loop = (i, j)
+#         __shuffle_particles_vertex!(
+#             particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
+#         )
+#     end
 
-    return nothing
-end
+#     return nothing
+# end
 
-function _shuffle_particles_vertex!(
-    particle_coords, grid, dxi, nxi, index, parent_cell::NTuple{3,Int64}, args
-)
-    # coordinate of the lower-most-left coordinate of the parent cell 
-    corner_xi = corner_coordinate(grid, parent_cell)
-    # iterate over neighbouring (child) cells
-    for k in -1:1, j in -1:1, i in -1:1
-        idx_loop = (i, j, k)
-        if idx_loop != (0,0,0)
-            __shuffle_particles_vertex!(
-                particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
-            )
-        end
-    end
-
-    return nothing
-end
-
-# @generated function _shuffle_particles_vertex!(
-#     particle_coords, grid, dxi, nxi, index, parent_cell::NTuple{N,Int64}, args
-# ) where N
-#     quote
-#         # coordinate of the lower-most-left coordinate of the parent cell 
-#         # iterate over neighbouring (child) cells
-#         corner_xi = corner_coordinate(grid, parent_cell)
-#         if $N==2
-#             for j in -1:1, i in -1:1
-#                 idx_loop = (i, j)
-#                 __shuffle_particles_vertex!(
-#                     particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
-#                 )
-#             end
-
-#         elseif $N==3
-#             for k in -1:1, j in -1:1, i in -1:1
-#                 idx_loop = (i, j, k)
-#                 if idx_loop != (0,0,0)
-#                     __shuffle_particles_vertex!(
-#                         particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
-#                     )
-#                 end
-#             end
+# function _shuffle_particles_vertex!(
+#     particle_coords, grid, dxi, nxi, index, parent_cell::NTuple{3,Int64}, args
+# )
+#     # coordinate of the lower-most-left coordinate of the parent cell 
+#     corner_xi = corner_coordinate(grid, parent_cell)
+#     # iterate over neighbouring (child) cells
+#     for k in -1:1, j in -1:1, i in -1:1
+#         idx_loop = (i, j, k)
+#         if idx_loop != (0,0,0)
+#             __shuffle_particles_vertex!(
+#                 particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
+#             )
 #         end
 #     end
 
 #     return nothing
 # end
+
+@generated function _shuffle_particles_vertex!(
+    particle_coords, grid, dxi, nxi, index, parent_cell::NTuple{N,Int64}, args
+) where N
+    quote
+        # coordinate of the lower-most-left coordinate of the parent cell 
+        # iterate over neighbouring (child) cells
+        corner_xi = corner_coordinate(grid, parent_cell)
+        if $N==2
+            for j in -1:1, i in -1:1
+                idx_loop = (i, j)
+                __shuffle_particles_vertex!(
+                    particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
+                )
+            end
+
+        elseif $N==3
+            for k in -1:1, j in -1:1, i in -1:1
+                idx_loop = (i, j, k)
+                if idx_loop != (0,0,0)
+                    __shuffle_particles_vertex!(
+                        particle_coords, corner_xi, dxi, nxi, index, parent_cell, args, idx_loop
+                    )
+                end
+            end
+        end
+    end
+
+    return nothing
+end
 
 function __shuffle_particles_vertex!(
     particle_coords,
@@ -173,7 +171,7 @@ function __shuffle_particles_vertex!(
                     empty_particle!(args, ip, idx_child)
 
                     # check whether there's empty space in parent cell
-                    free_idx = find_free_memory(index, parent_cell)
+                    free_idx = find_free_memory(index, idx_child)
                     free_idx == 0 && continue
                     
                     # move particle and its fields to the first free memory location
@@ -186,21 +184,13 @@ function __shuffle_particles_vertex!(
     end
 end
 
-# @generated function find_free_memory(index, I::NTuple{N,Int64}) where {N}
-#     quote
-#         Base.@_inline_meta
-#         Base.Cartesian.@nexprs $N i -> @inbounds index[i, I...] == 0 && return i
-#         return 0
-#     end
-# end
-
-function find_free_memory(index, I::NTuple{N,Int64}) where {N}
-    for i in axes(index,1)
-        @inbounds index[i, I...] == 0 && return i
+@generated function find_free_memory(index, I::NTuple{N,Int64}) where {N}
+    quote
+        Base.@_inline_meta
+        Base.Cartesian.@nexprs $N i -> @inbounds index[i, I...] == 0 && return i
+        return 0
     end
-    return 0
 end
-
 
 @generated function indomain(idx_child::NTuple{N,Integer}, nxi::NTuple{N,Integer}) where {N}
     quote
