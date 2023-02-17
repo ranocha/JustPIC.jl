@@ -25,7 +25,7 @@ export Particles, init_particles, particle2grid!
 include("utils.jl")
 
 include("advection.jl")
-export advection_RK2!
+export advection_RK2!, advection_RK2_vertex!
 
 include("injection.jl")
 export inject_particles!, check_injection
